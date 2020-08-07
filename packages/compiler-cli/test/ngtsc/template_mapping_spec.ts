@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -14,13 +14,13 @@ import {tsSourceMapBug29300Fixed} from '../../src/ngtsc/util/src/ts_source_map_b
 import {loadStandardTestFiles} from '../helpers/src/mock_file_loading';
 
 import {NgtscTestEnvironment} from './env';
-import {SegmentMapping, getMappedSegments} from './sourcemap_utils';
+import {getMappedSegments, SegmentMapping} from './sourcemap_utils';
 
 const testFiles = loadStandardTestFiles();
 
 runInEachFileSystem((os) => {
   describe('template source-mapping', () => {
-    let env !: NgtscTestEnvironment;
+    let env!: NgtscTestEnvironment;
 
     beforeEach(() => {
       env = NgtscTestEnvironment.setup(testFiles);
@@ -80,7 +80,7 @@ runInEachFileSystem((os) => {
           const mappings = compileAndMap('<div id="{{name}}"></div>');
           expect(mappings).toContain({
             source: '<div id="{{name}}"></div>',
-            generated: 'i0.ɵɵelement(0, "div", _c0)',
+            generated: 'i0.ɵɵelement(0, "div", 0)',
             sourceUrl: '../test.ts'
           });
           expect(mappings).toContain({
@@ -109,7 +109,7 @@ runInEachFileSystem((os) => {
           const mappings = compileAndMap('<div [attr]="name"></div>');
           expect(mappings).toContain({
             source: '<div [attr]="name"></div>',
-            generated: 'i0.ɵɵelement(0, "div", _c0)',
+            generated: 'i0.ɵɵelement(0, "div", 0)',
             sourceUrl: '../test.ts'
           });
           expect(mappings).toContain({
@@ -124,7 +124,7 @@ runInEachFileSystem((os) => {
 
           expect(mappings).toContain({
             source: '<div [attr]="greeting + name"></div>',
-            generated: 'i0.ɵɵelement(0, "div", _c0)',
+            generated: 'i0.ɵɵelement(0, "div", 0)',
             sourceUrl: '../test.ts'
           });
           expect(mappings).toContain({
@@ -138,7 +138,7 @@ runInEachFileSystem((os) => {
           const mappings = compileAndMap('<div bind-attr="name"></div>');
           expect(mappings).toContain({
             source: '<div bind-attr="name"></div>',
-            generated: 'i0.ɵɵelement(0, "div", _c0)',
+            generated: 'i0.ɵɵelement(0, "div", 0)',
             sourceUrl: '../test.ts'
           });
           expect(mappings).toContain({
@@ -152,7 +152,7 @@ runInEachFileSystem((os) => {
           const mappings = compileAndMap('<button (click)="doSomething()">Do it</button>');
           expect(mappings).toContain({
             source: '<button (click)="doSomething()">',
-            generated: 'i0.ɵɵelementStart(0, "button", _c0)',
+            generated: 'i0.ɵɵelementStart(0, "button", 0)',
             sourceUrl: '../test.ts'
           });
           expect(mappings).toContain(
@@ -168,7 +168,7 @@ runInEachFileSystem((os) => {
               `<button (click)="items.push('item' + items.length)">Add Item</button>`);
           expect(mappings).toContain({
             source: `<button (click)="items.push('item' + items.length)">`,
-            generated: 'i0.ɵɵelementStart(0, "button", _c0)',
+            generated: 'i0.ɵɵelementStart(0, "button", 0)',
             sourceUrl: '../test.ts'
           });
           expect(mappings).toContain(
@@ -176,9 +176,9 @@ runInEachFileSystem((os) => {
           expect(mappings).toContain(
               {source: 'items.push(', generated: 'ctx.items.push(', sourceUrl: '../test.ts'});
           expect(mappings).toContain(
-              {source: `'item' `, generated: `"item"`, sourceUrl: '../test.ts'});
+              {source: `'item'`, generated: `"item"`, sourceUrl: '../test.ts'});
           expect(mappings).toContain({
-            source: '+ items.length)',
+            source: ' + items.length)',
             generated: ' + ctx.items.length)',
             sourceUrl: '../test.ts'
           });
@@ -190,7 +190,7 @@ runInEachFileSystem((os) => {
           const mappings = compileAndMap('<button on-click="doSomething()">Do it</button>');
           expect(mappings).toContain({
             source: '<button on-click="doSomething()">',
-            generated: 'i0.ɵɵelementStart(0, "button", _c0)',
+            generated: 'i0.ɵɵelementStart(0, "button", 0)',
             sourceUrl: '../test.ts'
           });
           expect(mappings).toContain(
@@ -205,7 +205,7 @@ runInEachFileSystem((os) => {
           const mappings = compileAndMap('Name: <input [(ngModel)]="name">');
           expect(mappings).toContain({
             source: '<input [(ngModel)]="name">',
-            generated: 'i0.ɵɵelementStart(1, "input", _c0)',
+            generated: 'i0.ɵɵelementStart(1, "input", 0)',
             sourceUrl: '../test.ts'
           });
           // TODO: improve mappings here
@@ -226,7 +226,7 @@ runInEachFileSystem((os) => {
           const mappings = compileAndMap('Name: <input bindon-ngModel="name">');
           expect(mappings).toContain({
             source: '<input bindon-ngModel="name">',
-            generated: 'i0.ɵɵelementStart(1, "input", _c0)',
+            generated: 'i0.ɵɵelementStart(1, "input", 0)',
             sourceUrl: '../test.ts'
           });
           // TODO: improve mappings here
@@ -323,7 +323,6 @@ runInEachFileSystem((os) => {
 
           expect(mappings).toContain(
               {source: '</div>', generated: 'i0.ɵɵelementEnd()', sourceUrl: '../test.ts'});
-
         });
 
         it('should map ng-template [ngFor] scenario', () => {
@@ -424,14 +423,14 @@ runInEachFileSystem((os) => {
            const mappings = compileAndMap('<div class=\\"some-class\\">this is a test</div>');
 
            expect(mappings).toContain({
-             generated: 'i0.ɵɵelementStart(0, "div", _c0)',
+             generated: 'i0.ɵɵelementStart(0, "div", 0)',
              source: '<div class=\\"some-class\\">',
              sourceUrl: '../test.ts'
            });
 
-           const c2Mapping =
-               mappings.find(mapping => /var _c0 = \[1, "some-class"\];/.test(mapping.generated));
-           expect(c2Mapping).toBeDefined();
+           const attrsMapping =
+               mappings.find(mapping => /consts: \[\[1, "some-class"\]\]/.test(mapping.generated));
+           expect(attrsMapping).toBeDefined();
          });
     });
 
@@ -518,7 +517,7 @@ runInEachFileSystem((os) => {
       });
     }
 
-    function compileAndMap(template: string, templateUrl: string | null = null) {
+    function compileAndMap(template: string, templateUrl: string|null = null) {
       const templateConfig = templateUrl ? `templateUrl: '${templateUrl}'` :
                                            ('template: `' + template.replace(/`/g, '\\`') + '`');
       env.tsconfig({sourceMap: true});

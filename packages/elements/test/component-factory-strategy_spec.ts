@@ -1,12 +1,12 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {ComponentFactory, ComponentRef, Injector, NgModuleRef, SimpleChange, SimpleChanges, Type} from '@angular/core';
+import {ApplicationRef, ComponentFactory, ComponentFactoryResolver, ComponentRef, Injector, NgModuleRef, NgZone, SimpleChange, SimpleChanges, Type} from '@angular/core';
 import {fakeAsync, tick} from '@angular/core/testing';
 import {Subject} from 'rxjs';
 
@@ -20,25 +20,70 @@ describe('ComponentFactoryNgElementStrategy', () => {
   let injector: any;
   let componentRef: any;
   let applicationRef: any;
+  let ngZone: any;
+
+  let injectables: Map<unknown, unknown>;
 
   beforeEach(() => {
     factory = new FakeComponentFactory();
     componentRef = factory.componentRef;
 
     applicationRef = jasmine.createSpyObj('applicationRef', ['attachView']);
+
+    ngZone = jasmine.createSpyObj('ngZone', ['run']);
+    ngZone.run.and.callFake((fn: () => unknown) => fn());
+
     injector = jasmine.createSpyObj('injector', ['get']);
-    injector.get.and.returnValue(applicationRef);
+    injector.get.and.callFake((token: unknown) => {
+      if (!injectables.has(token)) {
+        throw new Error(`Failed to get injectable from mock injector: ${token}`);
+      }
+      return injectables.get(token);
+    });
+
+    injectables = new Map<unknown, unknown>([
+      [ApplicationRef, applicationRef],
+      [NgZone, ngZone],
+    ]);
 
     strategy = new ComponentNgElementStrategy(factory, injector);
+    ngZone.run.calls.reset();
   });
 
   it('should create a new strategy from the factory', () => {
     const factoryResolver = jasmine.createSpyObj('factoryResolver', ['resolveComponentFactory']);
     factoryResolver.resolveComponentFactory.and.returnValue(factory);
-    injector.get.and.returnValue(factoryResolver);
+    injectables.set(ComponentFactoryResolver, factoryResolver);
 
     const strategyFactory = new ComponentNgElementStrategyFactory(FakeComponent, injector);
     expect(strategyFactory.create(injector)).toBeTruthy();
+  });
+
+  describe('before connected', () => {
+    it('should allow subscribing to output events', () => {
+      const events: NgElementStrategyEvent[] = [];
+      strategy.events.subscribe(e => events.push(e));
+
+      // No events before connecting (since `componentRef` is not even on the strategy yet).
+      componentRef.instance.output1.next('output-1a');
+      componentRef.instance.output1.next('output-1b');
+      componentRef.instance.output2.next('output-2a');
+      expect(events).toEqual([]);
+
+      // No events upon connecting (since events are not cached/played back).
+      strategy.connect(document.createElement('div'));
+      expect(events).toEqual([]);
+
+      // Events emitted once connected.
+      componentRef.instance.output1.next('output-1c');
+      componentRef.instance.output1.next('output-1d');
+      componentRef.instance.output2.next('output-2b');
+      expect(events).toEqual([
+        {name: 'templateOutput1', value: 'output-1c'},
+        {name: 'templateOutput1', value: 'output-1d'},
+        {name: 'templateOutput2', value: 'output-2b'},
+      ]);
+    });
   });
 
   describe('after connected', () => {
@@ -53,11 +98,13 @@ describe('ComponentFactoryNgElementStrategy', () => {
       strategy.connect(document.createElement('div'));
     });
 
-    it('should attach the component to the view',
-       () => { expect(applicationRef.attachView).toHaveBeenCalledWith(componentRef.hostView); });
+    it('should attach the component to the view', () => {
+      expect(applicationRef.attachView).toHaveBeenCalledWith(componentRef.hostView);
+    });
 
-    it('should detect changes',
-       () => { expect(componentRef.changeDetectorRef.detectChanges).toHaveBeenCalled(); });
+    it('should detect changes', () => {
+      expect(componentRef.changeDetectorRef.detectChanges).toHaveBeenCalled();
+    });
 
     it('should listen to output events', () => {
       const events: NgElementStrategyEvent[] = [];
@@ -93,22 +140,25 @@ describe('ComponentFactoryNgElementStrategy', () => {
 
     it('should call ngOnChanges with the change', () => {
       expectSimpleChanges(componentRef.instance.simpleChanges[0], {
-        fooFoo: new SimpleChange(undefined, 'fooFoo-1', false),
-        falsyNull: new SimpleChange(undefined, null, false),
-        falsyEmpty: new SimpleChange(undefined, '', false),
-        falsyFalse: new SimpleChange(undefined, false, false),
-        falsyZero: new SimpleChange(undefined, 0, false),
+        fooFoo: new SimpleChange(undefined, 'fooFoo-1', true),
+        falsyUndefined: new SimpleChange(undefined, undefined, true),
+        falsyNull: new SimpleChange(undefined, null, true),
+        falsyEmpty: new SimpleChange(undefined, '', true),
+        falsyFalse: new SimpleChange(undefined, false, true),
+        falsyZero: new SimpleChange(undefined, 0, true),
       });
     });
 
     it('should call ngOnChanges with proper firstChange value', fakeAsync(() => {
-         strategy.setInputValue('falsyUndefined', 'notanymore');
+         strategy.setInputValue('fooFoo', 'fooFoo-2');
          strategy.setInputValue('barBar', 'barBar-1');
+         strategy.setInputValue('falsyUndefined', 'notanymore');
          tick(16);  // scheduler waits 16ms if RAF is unavailable
          (strategy as any).detectChanges();
          expectSimpleChanges(componentRef.instance.simpleChanges[1], {
-           falsyUndefined: new SimpleChange(undefined, 'notanymore', false),
+           fooFoo: new SimpleChange('fooFoo-1', 'fooFoo-2', false),
            barBar: new SimpleChange(undefined, 'barBar-1', true),
+           falsyUndefined: new SimpleChange(undefined, 'notanymore', false),
          });
        }));
   });
@@ -137,7 +187,9 @@ describe('ComponentFactoryNgElementStrategy', () => {
   });
 
   describe('when inputs change and is connected', () => {
-    beforeEach(() => { strategy.connect(document.createElement('div')); });
+    beforeEach(() => {
+      strategy.connect(document.createElement('div'));
+    });
 
     it('should be set on the component instance', () => {
       strategy.setInputValue('fooFoo', 'fooFoo-1');
@@ -232,6 +284,30 @@ describe('ComponentFactoryNgElementStrategy', () => {
          expect(componentRef.destroy).toHaveBeenCalledTimes(1);
        }));
   });
+
+  describe('runInZone', () => {
+    const param = 'foofoo';
+    const fn = () => param;
+
+    it('should run the callback directly when invoked in element\'s zone', () => {
+      expect(strategy['runInZone'](fn)).toEqual('foofoo');
+      expect(ngZone.run).not.toHaveBeenCalled();
+    });
+
+    it('should run the callback inside the element\'s zone when invoked in a different zone',
+       () => {
+         expect(Zone.root.run(() => (strategy['runInZone'](fn)))).toEqual('foofoo');
+         expect(ngZone.run).toHaveBeenCalledWith(fn);
+       });
+
+    it('should run the callback directly when called without zone.js loaded', () => {
+      // simulate no zone.js loaded
+      (strategy as any)['elementZone'] = null;
+
+      expect(Zone.root.run(() => (strategy['runInZone'](fn)))).toEqual('foofoo');
+      expect(ngZone.run).not.toHaveBeenCalled();
+    });
+  });
 });
 
 export class FakeComponentWithoutNgOnChanges {
@@ -246,7 +322,9 @@ export class FakeComponent {
   // Keep track of the simple changes passed to ngOnChanges
   simpleChanges: SimpleChanges[] = [];
 
-  ngOnChanges(simpleChanges: SimpleChanges) { this.simpleChanges.push(simpleChanges); }
+  ngOnChanges(simpleChanges: SimpleChanges) {
+    this.simpleChanges.push(simpleChanges);
+  }
 }
 
 export class FakeComponentFactory extends ComponentFactory<any> {
@@ -260,9 +338,15 @@ export class FakeComponentFactory extends ComponentFactory<any> {
         jasmine.createSpyObj('changeDetectorRef', ['detectChanges']);
   }
 
-  get selector(): string { return 'fake-component'; }
-  get componentType(): Type<any> { return FakeComponent; }
-  get ngContentSelectors(): string[] { return ['content-1', 'content-2']; }
+  get selector(): string {
+    return 'fake-component';
+  }
+  get componentType(): Type<any> {
+    return FakeComponent;
+  }
+  get ngContentSelectors(): string[] {
+    return ['content-1', 'content-2'];
+  }
   get inputs(): {propName: string; templateName: string}[] {
     return [
       {propName: 'fooFoo', templateName: 'fooFoo'},
@@ -290,15 +374,16 @@ export class FakeComponentFactory extends ComponentFactory<any> {
 }
 
 function expectSimpleChanges(actual: SimpleChanges, expected: SimpleChanges) {
-  Object.keys(actual).forEach(
-      key => { expect(expected[key]).toBeTruthy(`Change included additional key ${key}`); });
+  Object.keys(actual).forEach(key => {
+    expect(expected[key]).toBeTruthy(`Change included additional key ${key}`);
+  });
 
   Object.keys(expected).forEach(key => {
     expect(actual[key]).toBeTruthy(`Change should have included key ${key}`);
     if (actual[key]) {
-      expect(actual[key].previousValue).toBe(expected[key].previousValue);
-      expect(actual[key].currentValue).toBe(expected[key].currentValue);
-      expect(actual[key].firstChange).toBe(expected[key].firstChange);
+      expect(actual[key].previousValue).toBe(expected[key].previousValue, `${key}.previousValue`);
+      expect(actual[key].currentValue).toBe(expected[key].currentValue, `${key}.currentValue`);
+      expect(actual[key].firstChange).toBe(expected[key].firstChange, `${key}.firstChange`);
     }
   });
 }

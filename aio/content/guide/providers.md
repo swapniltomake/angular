@@ -1,6 +1,6 @@
-# Providers
+# Providing dependencies in modules
 
-A provider is an instruction to the DI system on how to obtain a value for a dependency. Most of the time, these dependencies are services that you create and provide.
+A provider is an instruction to the [Dependency Injection](/guide/dependency-injection) system on how to obtain a value for a dependency. Most of the time, these dependencies are services that you create and provide.
 
 For the final sample app using the provider that this page describes,
 see the <live-example></live-example>.
@@ -52,14 +52,22 @@ Any component created within a lazy loaded module’s context, such as by router
 
 Though you can provide services by lazy loading modules, not all services can be lazy loaded. For instance, some modules only work in the root module, such as the Router. The Router works with the global location object in the browser.
 
+As of Angular version 9, you can provide a new instance of a service with each lazy loaded module. The following code adds this functionality to `UserService`.
+
+<code-example path="providers/src/app/user.service.2.ts"  header="src/app/user.service.ts"></code-example>
+
+With `providedIn: 'any'`, all eagerly loaded modules share a singleton instance; however, lazy loaded modules each get their own unique instance, as shown in the following diagram.
+
+<img src="generated/images/guide/providers/any-provider.svg" alt="any-provider-scope" class="left">
+
 
 ## Limiting provider scope with components
 
 Another way to limit provider scope is by adding the service you want to limit to the component’s
 `providers` array. Component providers and NgModule providers are independent of each other. This
-method is helpful for when you want to eagerly load a module that needs a service all to itself.
-Providing a service in the component limits the service only to that component (other components in
-the same module can’t access it.)
+method is helpful when you want to eagerly load a module that needs a service all to itself.
+Providing a service in the component limits the service only to that component and its descendants.
+Other components in the same module can’t access it.
 
 <code-example path="providers/src/app/app.component.ts" region="component-providers" header="src/app/app.component.ts"></code-example>
 

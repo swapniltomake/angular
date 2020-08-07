@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -12,9 +12,9 @@ import * as ts from 'typescript';
 import {absoluteFrom} from '../../file_system';
 import {runInEachFileSystem} from '../../file_system/testing';
 import {LocalIdentifierStrategy, NOOP_DEFAULT_IMPORT_RECORDER, ReferenceEmitter} from '../../imports';
-import {CompoundMetadataReader, DtsMetadataReader, LocalMetadataRegistry} from '../../metadata';
+import {CompoundMetadataReader, DtsMetadataReader, InjectableClassRegistry, LocalMetadataRegistry} from '../../metadata';
 import {PartialEvaluator} from '../../partial_evaluator';
-import {TypeScriptReflectionHost, isNamedClassDeclaration} from '../../reflection';
+import {isNamedClassDeclaration, TypeScriptReflectionHost} from '../../reflection';
 import {LocalModuleScopeRegistry, MetadataDtsModuleScopeResolver} from '../../scope';
 import {getDeclaration, makeProgram} from '../../testing';
 import {NgModuleDecoratorHandler} from '../src/ng_module';
@@ -57,7 +57,7 @@ runInEachFileSystem(() => {
       ]);
       const checker = program.getTypeChecker();
       const reflectionHost = new TypeScriptReflectionHost(checker);
-      const evaluator = new PartialEvaluator(reflectionHost, checker);
+      const evaluator = new PartialEvaluator(reflectionHost, checker, /* dependencyTracker */ null);
       const referencesRegistry = new NoopReferencesRegistry();
       const metaRegistry = new LocalMetadataRegistry();
       const metaReader = new CompoundMetadataReader([metaRegistry]);
@@ -66,10 +66,12 @@ runInEachFileSystem(() => {
           metaRegistry, new MetadataDtsModuleScopeResolver(dtsReader, null),
           new ReferenceEmitter([]), null);
       const refEmitter = new ReferenceEmitter([new LocalIdentifierStrategy()]);
+      const injectableRegistry = new InjectableClassRegistry(reflectionHost);
 
       const handler = new NgModuleDecoratorHandler(
           reflectionHost, evaluator, metaReader, metaRegistry, scopeRegistry, referencesRegistry,
-          false, null, refEmitter, NOOP_DEFAULT_IMPORT_RECORDER);
+          /* isCore */ false, /* routeAnalyzer */ null, refEmitter, /* factoryTracker */ null,
+          NOOP_DEFAULT_IMPORT_RECORDER, /* annotateForClosureCompiler */ false, injectableRegistry);
       const TestModule =
           getDeclaration(program, _('/entry.ts'), 'TestModule', isNamedClassDeclaration);
       const detected =
@@ -77,7 +79,7 @@ runInEachFileSystem(() => {
       if (detected === undefined) {
         return fail('Failed to recognize @NgModule');
       }
-      const moduleDef = handler.analyze(TestModule, detected.metadata).analysis !.ngModuleDef;
+      const moduleDef = handler.analyze(TestModule, detected.metadata).analysis!.mod;
 
       expect(getReferenceIdentifierTexts(moduleDef.declarations)).toEqual(['TestComp']);
       expect(getReferenceIdentifierTexts(moduleDef.exports)).toEqual(['TestComp']);

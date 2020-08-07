@@ -1,12 +1,10 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
-
-import {assertEqual} from '../util/assert';
 
 
 export const enum BypassType {
@@ -61,9 +59,7 @@ export interface SafeResourceUrl extends SafeValue {}
 
 
 abstract class SafeValueImpl implements SafeValue {
-  constructor(public changingThisBreaksApplicationSecurity: string) {
-    // empty
-  }
+  constructor(public changingThisBreaksApplicationSecurity: string) {}
 
   abstract getTypeName(): string;
 
@@ -74,25 +70,36 @@ abstract class SafeValueImpl implements SafeValue {
 }
 
 class SafeHtmlImpl extends SafeValueImpl implements SafeHtml {
-  getTypeName() { return BypassType.Html; }
+  getTypeName() {
+    return BypassType.Html;
+  }
 }
 class SafeStyleImpl extends SafeValueImpl implements SafeStyle {
-  getTypeName() { return BypassType.Style; }
+  getTypeName() {
+    return BypassType.Style;
+  }
 }
 class SafeScriptImpl extends SafeValueImpl implements SafeScript {
-  getTypeName() { return BypassType.Script; }
+  getTypeName() {
+    return BypassType.Script;
+  }
 }
 class SafeUrlImpl extends SafeValueImpl implements SafeUrl {
-  getTypeName() { return BypassType.Url; }
+  getTypeName() {
+    return BypassType.Url;
+  }
 }
 class SafeResourceUrlImpl extends SafeValueImpl implements SafeResourceUrl {
-  getTypeName() { return BypassType.ResourceUrl; }
+  getTypeName() {
+    return BypassType.ResourceUrl;
+  }
 }
 
-export function unwrapSafeValue(value: SafeValue): string {
-  return value instanceof SafeValueImpl ?
-      (value as SafeValueImpl).changingThisBreaksApplicationSecurity :
-      '';
+export function unwrapSafeValue(value: SafeValue): string;
+export function unwrapSafeValue<T>(value: T): T;
+export function unwrapSafeValue<T>(value: T|SafeValue): T {
+  return value instanceof SafeValueImpl ? value.changingThisBreaksApplicationSecurity as any as T :
+                                          value as any as T;
 }
 
 
@@ -118,8 +125,7 @@ export function allowSanitizationBypassAndThrow(value: any, type: BypassType): b
 }
 
 export function getSanitizationBypassType(value: any): BypassType|null {
-  return value instanceof SafeValueImpl && (value as SafeValueImpl).getTypeName() as BypassType ||
-      null;
+  return value instanceof SafeValueImpl && value.getTypeName() as BypassType || null;
 }
 
 /**

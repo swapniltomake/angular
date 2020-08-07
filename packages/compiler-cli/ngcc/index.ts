@@ -1,29 +1,22 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
-import {CachedFileSystem, NodeJSFileSystem, setFileSystem} from '../src/ngtsc/file_system';
+import {NodeJSFileSystem, setFileSystem} from '../src/ngtsc/file_system';
 
 import {mainNgcc} from './src/main';
-import {hasBeenProcessed as _hasBeenProcessed} from './src/packages/build_marker';
-import {EntryPointJsonProperty, EntryPointPackageJson} from './src/packages/entry_point';
+import {AsyncNgccOptions, SyncNgccOptions} from './src/ngcc_options';
 
-export {ConsoleLogger, LogLevel} from './src/logging/console_logger';
-export {Logger} from './src/logging/logger';
-export {NgccOptions} from './src/main';
-export {PathMappings} from './src/utils';
+export {ConsoleLogger, Logger, LogLevel} from '../src/ngtsc/logging';
+export {AsyncNgccOptions, clearTsConfigCache, NgccOptions, SyncNgccOptions} from './src/ngcc_options';
+export {PathMappings} from './src/path_mappings';
 
-export function hasBeenProcessed(packageJson: object, format: string) {
-  // Recreate the file system on each call to reset the cache
-  setFileSystem(new CachedFileSystem(new NodeJSFileSystem()));
-  return _hasBeenProcessed(packageJson as EntryPointPackageJson, format as EntryPointJsonProperty);
-}
-
-export function process(...args: Parameters<typeof mainNgcc>) {
-  // Recreate the file system on each call to reset the cache
-  setFileSystem(new CachedFileSystem(new NodeJSFileSystem()));
-  return mainNgcc(...args);
+export function process<T extends AsyncNgccOptions|SyncNgccOptions>(options: T):
+    T extends AsyncNgccOptions ? Promise<void>: void;
+export function process(options: AsyncNgccOptions|SyncNgccOptions): void|Promise<void> {
+  setFileSystem(new NodeJSFileSystem());
+  return mainNgcc(options);
 }

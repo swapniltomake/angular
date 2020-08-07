@@ -1,6 +1,6 @@
 # Singleton services
 
-A singleton service is a service for which only once instance exists in an app.
+A singleton service is a service for which only one instance exists in an app.
 
 For a sample app using the app-wide singleton service that this page describes, see the
 <live-example name="ngmodules"></live-example> showcasing all the documented features of NgModules.
@@ -9,7 +9,7 @@ For a sample app using the app-wide singleton service that this page describes, 
 
 There are two ways to make a service a singleton in Angular:
 
-* Declare `root` for the value of the `@Injectable()` `providedIn` property
+* Set the `providedIn` property of the `@Injectable()` to `"root"`.
 * Include the service in the `AppModule` or in a module that is only imported by the `AppModule`
 
 

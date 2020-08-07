@@ -7,7 +7,6 @@ ts_config(
     name = "tsconfig",
     src = "tsconfig.json",
     deps = [
-        "//packages:tsconfig-build.json",
         "//packages:tsconfig-test",
     ],
 )
@@ -28,6 +27,5 @@ jasmine_node_test(
     name = "strict_types",
     deps = [
         ":strict_types_lib",
-        "//tools/testing:node",
     ],
 )

@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -44,51 +44,66 @@ export const PENDING = 'PENDING';
  */
 export const DISABLED = 'DISABLED';
 
-function _find(control: AbstractControl, path: Array<string|number>| string, delimiter: string) {
+function _find(control: AbstractControl, path: Array<string|number>|string, delimiter: string) {
   if (path == null) return null;
 
-  if (!(path instanceof Array)) {
-    path = (<string>path).split(delimiter);
+  if (!Array.isArray(path)) {
+    path = path.split(delimiter);
   }
-  if (path instanceof Array && (path.length === 0)) return null;
+  if (Array.isArray(path) && path.length === 0) return null;
 
-  return (<Array<string|number>>path).reduce((v: AbstractControl | null, name) => {
-    if (v instanceof FormGroup) {
-      return v.controls.hasOwnProperty(name as string) ? v.controls[name] : null;
+  // Not using Array.reduce here due to a Chrome 80 bug
+  // https://bugs.chromium.org/p/chromium/issues/detail?id=1049982
+  let controlToFind: AbstractControl|null = control;
+  path.forEach((name: string|number) => {
+    if (controlToFind instanceof FormGroup) {
+      controlToFind = controlToFind.controls.hasOwnProperty(name as string) ?
+          controlToFind.controls[name] :
+          null;
+    } else if (controlToFind instanceof FormArray) {
+      controlToFind = controlToFind.at(<number>name) || null;
+    } else {
+      controlToFind = null;
     }
-
-    if (v instanceof FormArray) {
-      return v.at(<number>name) || null;
-    }
-
-    return null;
-  }, control);
+  });
+  return controlToFind;
 }
 
-function coerceToValidator(
-    validatorOrOpts?: ValidatorFn | ValidatorFn[] | AbstractControlOptions | null): ValidatorFn|
-    null {
-  const validator =
-      (isOptionsObj(validatorOrOpts) ? (validatorOrOpts as AbstractControlOptions).validators :
-                                       validatorOrOpts) as ValidatorFn |
-      ValidatorFn[] | null;
+/**
+ * Gets validators from either an options object or given validators.
+ */
+function pickValidators(validatorOrOpts?: ValidatorFn|ValidatorFn[]|AbstractControlOptions|
+                        null): ValidatorFn|ValidatorFn[]|null {
+  return (isOptionsObj(validatorOrOpts) ? validatorOrOpts.validators : validatorOrOpts) || null;
+}
 
+/**
+ * Creates validator function by combining provided validators.
+ */
+function coerceToValidator(validator: ValidatorFn|ValidatorFn[]|null): ValidatorFn|null {
   return Array.isArray(validator) ? composeValidators(validator) : validator || null;
 }
 
-function coerceToAsyncValidator(
-    asyncValidator?: AsyncValidatorFn | AsyncValidatorFn[] | null, validatorOrOpts?: ValidatorFn |
-        ValidatorFn[] | AbstractControlOptions | null): AsyncValidatorFn|null {
-  const origAsyncValidator =
-      (isOptionsObj(validatorOrOpts) ? (validatorOrOpts as AbstractControlOptions).asyncValidators :
-                                       asyncValidator) as AsyncValidatorFn |
-      AsyncValidatorFn | null;
-
-  return Array.isArray(origAsyncValidator) ? composeAsyncValidators(origAsyncValidator) :
-                                             origAsyncValidator || null;
+/**
+ * Gets async validators from either an options object or given validators.
+ */
+function pickAsyncValidators(
+    asyncValidator?: AsyncValidatorFn|AsyncValidatorFn[]|null,
+    validatorOrOpts?: ValidatorFn|ValidatorFn[]|AbstractControlOptions|null): AsyncValidatorFn|
+    AsyncValidatorFn[]|null {
+  return (isOptionsObj(validatorOrOpts) ? validatorOrOpts.asyncValidators : asyncValidator) || null;
 }
 
-export type FormHooks = 'change' | 'blur' | 'submit';
+/**
+ * Creates async validator function by combining provided async validators.
+ */
+function coerceToAsyncValidator(asyncValidator?: AsyncValidatorFn|AsyncValidatorFn[]|
+                                null): AsyncValidatorFn|null {
+  return Array.isArray(asyncValidator) ? composeAsyncValidators(asyncValidator) :
+                                         asyncValidator || null;
+}
+
+export type FormHooks = 'change'|'blur'|'submit';
 
 /**
  * Interface for options provided to an `AbstractControl`.
@@ -114,8 +129,8 @@ export interface AbstractControlOptions {
 }
 
 
-function isOptionsObj(
-    validatorOrOpts?: ValidatorFn | ValidatorFn[] | AbstractControlOptions | null): boolean {
+function isOptionsObj(validatorOrOpts?: ValidatorFn|ValidatorFn[]|AbstractControlOptions|
+                      null): validatorOrOpts is AbstractControlOptions {
   return validatorOrOpts != null && !Array.isArray(validatorOrOpts) &&
       typeof validatorOrOpts === 'object';
 }
@@ -138,22 +153,66 @@ function isOptionsObj(
 export abstract class AbstractControl {
   /** @internal */
   // TODO(issue/24571): remove '!'.
-  _pendingDirty !: boolean;
+  _pendingDirty!: boolean;
+
+  /**
+   * Indicates that a control has its own pending asynchronous validation in progress.
+   *
+   * @internal
+   */
+  _hasOwnPendingAsyncValidator = false;
 
   /** @internal */
   // TODO(issue/24571): remove '!'.
-  _pendingTouched !: boolean;
+  _pendingTouched!: boolean;
 
   /** @internal */
   _onCollectionChange = () => {};
 
   /** @internal */
   // TODO(issue/24571): remove '!'.
-  _updateOn !: FormHooks;
+  _updateOn!: FormHooks;
 
   // TODO(issue/24571): remove '!'.
-  private _parent !: FormGroup | FormArray;
+  private _parent!: FormGroup|FormArray;
   private _asyncValidationSubscription: any;
+
+  /**
+   * Contains the result of merging synchronous validators into a single validator function
+   * (combined using `Validators.compose`).
+   *
+   * @internal
+   */
+  private _composedValidatorFn: ValidatorFn|null;
+
+  /**
+   * Contains the result of merging asynchronous validators into a single validator function
+   * (combined using `Validators.composeAsync`).
+   *
+   * @internal
+   */
+  private _composedAsyncValidatorFn: AsyncValidatorFn|null;
+
+  /**
+   * Synchronous validators as they were provided:
+   *  - in `AbstractControl` constructor
+   *  - as an argument while calling `setValidators` function
+   *  - while calling the setter on the `validator` field (e.g. `control.validator = validatorFn`)
+   *
+   * @internal
+   */
+  private _rawValidators: ValidatorFn|ValidatorFn[]|null;
+
+  /**
+   * Asynchronous validators as they were provided:
+   *  - in `AbstractControl` constructor
+   *  - as an argument while calling `setAsyncValidators` function
+   *  - while calling the setter on the `asyncValidator` field (e.g. `control.asyncValidator =
+   * asyncValidatorFn`)
+   *
+   * @internal
+   */
+  private _rawAsyncValidators: AsyncValidatorFn|AsyncValidatorFn[]|null;
 
   /**
    * The current value of the control.
@@ -171,16 +230,46 @@ export abstract class AbstractControl {
   /**
    * Initialize the AbstractControl instance.
    *
-   * @param validator The function that determines the synchronous validity of this control.
-   * @param asyncValidator The function that determines the asynchronous validity of this
-   * control.
+   * @param validators The function or array of functions that is used to determine the validity of
+   *     this control synchronously.
+   * @param asyncValidators The function or array of functions that is used to determine validity of
+   *     this control asynchronously.
    */
-  constructor(public validator: ValidatorFn|null, public asyncValidator: AsyncValidatorFn|null) {}
+  constructor(
+      validators: ValidatorFn|ValidatorFn[]|null,
+      asyncValidators: AsyncValidatorFn|AsyncValidatorFn[]|null) {
+    this._rawValidators = validators;
+    this._rawAsyncValidators = asyncValidators;
+    this._composedValidatorFn = coerceToValidator(this._rawValidators);
+    this._composedAsyncValidatorFn = coerceToAsyncValidator(this._rawAsyncValidators);
+  }
+
+  /**
+   * The function that is used to determine the validity of this control synchronously.
+   */
+  get validator(): ValidatorFn|null {
+    return this._composedValidatorFn;
+  }
+  set validator(validatorFn: ValidatorFn|null) {
+    this._rawValidators = this._composedValidatorFn = validatorFn;
+  }
+
+  /**
+   * The function that is used to determine the validity of this control asynchronously.
+   */
+  get asyncValidator(): AsyncValidatorFn|null {
+    return this._composedAsyncValidatorFn;
+  }
+  set asyncValidator(asyncValidatorFn: AsyncValidatorFn|null) {
+    this._rawAsyncValidators = this._composedAsyncValidatorFn = asyncValidatorFn;
+  }
 
   /**
    * The parent control.
    */
-  get parent(): FormGroup|FormArray { return this._parent; }
+  get parent(): FormGroup|FormArray {
+    return this._parent;
+  }
 
   /**
    * The validation status of the control. There are four possible
@@ -195,7 +284,7 @@ export abstract class AbstractControl {
    * both valid AND invalid or invalid AND disabled.
    */
   // TODO(issue/24571): remove '!'.
-  public readonly status !: string;
+  public readonly status!: string;
 
   /**
    * A control is `valid` when its `status` is `VALID`.
@@ -205,7 +294,9 @@ export abstract class AbstractControl {
    * @returns True if the control has passed all of its validation tests,
    * false otherwise.
    */
-  get valid(): boolean { return this.status === VALID; }
+  get valid(): boolean {
+    return this.status === VALID;
+  }
 
   /**
    * A control is `invalid` when its `status` is `INVALID`.
@@ -215,7 +306,9 @@ export abstract class AbstractControl {
    * @returns True if this control has failed one or more of its validation checks,
    * false otherwise.
    */
-  get invalid(): boolean { return this.status === INVALID; }
+  get invalid(): boolean {
+    return this.status === INVALID;
+  }
 
   /**
    * A control is `pending` when its `status` is `PENDING`.
@@ -225,7 +318,9 @@ export abstract class AbstractControl {
    * @returns True if this control is in the process of conducting a validation check,
    * false otherwise.
    */
-  get pending(): boolean { return this.status == PENDING; }
+  get pending(): boolean {
+    return this.status == PENDING;
+  }
 
   /**
    * A control is `disabled` when its `status` is `DISABLED`.
@@ -238,7 +333,9 @@ export abstract class AbstractControl {
    *
    * @returns True if the control is disabled, false otherwise.
    */
-  get disabled(): boolean { return this.status === DISABLED; }
+  get disabled(): boolean {
+    return this.status === DISABLED;
+  }
 
   /**
    * A control is `enabled` as long as its `status` is not `DISABLED`.
@@ -249,14 +346,16 @@ export abstract class AbstractControl {
    * @see {@link AbstractControl.status}
    *
    */
-  get enabled(): boolean { return this.status !== DISABLED; }
+  get enabled(): boolean {
+    return this.status !== DISABLED;
+  }
 
   /**
    * An object containing any errors generated by failing validation,
    * or null if there are no errors.
    */
   // TODO(issue/24571): remove '!'.
-  public readonly errors !: ValidationErrors | null;
+  public readonly errors!: ValidationErrors|null;
 
   /**
    * A control is `pristine` if the user has not yet changed
@@ -274,7 +373,9 @@ export abstract class AbstractControl {
    * @returns True if the user has changed the value of this control in the UI; compare `pristine`.
    * Programmatic changes to a control's value do not mark it dirty.
    */
-  get dirty(): boolean { return !this.pristine; }
+  get dirty(): boolean {
+    return !this.pristine;
+  }
 
   /**
    * True if the control is marked as `touched`.
@@ -290,14 +391,17 @@ export abstract class AbstractControl {
    * A control is `untouched` if the user has not yet triggered
    * a `blur` event on it.
    */
-  get untouched(): boolean { return !this.touched; }
+  get untouched(): boolean {
+    return !this.touched;
+  }
 
   /**
    * A multicasting observable that emits an event every time the value of the control changes, in
-   * the UI or programmatically.
+   * the UI or programmatically. It also emits an event each time you call enable() or disable()
+   * without passing along {emitEvent: false} as a function argument.
    */
   // TODO(issue/24571): remove '!'.
-  public readonly valueChanges !: Observable<any>;
+  public readonly valueChanges!: Observable<any>;
 
   /**
    * A multicasting observable that emits an event every time the validation `status` of the control
@@ -307,7 +411,7 @@ export abstract class AbstractControl {
    *
    */
   // TODO(issue/24571): remove '!'.
-  public readonly statusChanges !: Observable<any>;
+  public readonly statusChanges!: Observable<any>;
 
   /**
    * Reports the update strategy of the `AbstractControl` (meaning
@@ -328,7 +432,8 @@ export abstract class AbstractControl {
    *
    */
   setValidators(newValidator: ValidatorFn|ValidatorFn[]|null): void {
-    this.validator = coerceToValidator(newValidator);
+    this._rawValidators = newValidator;
+    this._composedValidatorFn = coerceToValidator(newValidator);
   }
 
   /**
@@ -340,7 +445,8 @@ export abstract class AbstractControl {
    *
    */
   setAsyncValidators(newValidator: AsyncValidatorFn|AsyncValidatorFn[]|null): void {
-    this.asyncValidator = coerceToAsyncValidator(newValidator);
+    this._rawAsyncValidators = newValidator;
+    this._composedAsyncValidatorFn = coerceToAsyncValidator(newValidator);
   }
 
   /**
@@ -350,7 +456,9 @@ export abstract class AbstractControl {
    * `updateValueAndValidity()` for the new validation to take effect.
    *
    */
-  clearValidators(): void { this.validator = null; }
+  clearValidators(): void {
+    this.validator = null;
+  }
 
   /**
    * Empties out the async validator list.
@@ -359,7 +467,9 @@ export abstract class AbstractControl {
    * `updateValueAndValidity()` for the new validation to take effect.
    *
    */
-  clearAsyncValidators(): void { this.asyncValidator = null; }
+  clearAsyncValidators(): void {
+    this.asyncValidator = null;
+  }
 
   /**
    * Marks the control as `touched`. A control is touched by focus and
@@ -370,12 +480,12 @@ export abstract class AbstractControl {
    * @see `markAsPristine()`
    *
    * @param opts Configuration options that determine how the control propagates changes
-   * and emits events events after marking is applied.
+   * and emits events after marking is applied.
    * * `onlySelf`: When true, mark only this control. When false or not supplied,
    * marks all direct ancestors. Default is false.
    */
   markAsTouched(opts: {onlySelf?: boolean} = {}): void {
-    (this as{touched: boolean}).touched = true;
+    (this as {touched: boolean}).touched = true;
 
     if (this._parent && !opts.onlySelf) {
       this._parent.markAsTouched(opts);
@@ -408,11 +518,12 @@ export abstract class AbstractControl {
    * marks all direct ancestors. Default is false.
    */
   markAsUntouched(opts: {onlySelf?: boolean} = {}): void {
-    (this as{touched: boolean}).touched = false;
+    (this as {touched: boolean}).touched = false;
     this._pendingTouched = false;
 
-    this._forEachChild(
-        (control: AbstractControl) => { control.markAsUntouched({onlySelf: true}); });
+    this._forEachChild((control: AbstractControl) => {
+      control.markAsUntouched({onlySelf: true});
+    });
 
     if (this._parent && !opts.onlySelf) {
       this._parent._updateTouched(opts);
@@ -433,7 +544,7 @@ export abstract class AbstractControl {
    * marks all direct ancestors. Default is false.
    */
   markAsDirty(opts: {onlySelf?: boolean} = {}): void {
-    (this as{pristine: boolean}).pristine = false;
+    (this as {pristine: boolean}).pristine = false;
 
     if (this._parent && !opts.onlySelf) {
       this._parent.markAsDirty(opts);
@@ -454,13 +565,15 @@ export abstract class AbstractControl {
    * @param opts Configuration options that determine how the control emits events after
    * marking is applied.
    * * `onlySelf`: When true, mark only this control. When false or not supplied,
-   * marks all direct ancestors. Default is false..
+   * marks all direct ancestors. Default is false.
    */
   markAsPristine(opts: {onlySelf?: boolean} = {}): void {
-    (this as{pristine: boolean}).pristine = true;
+    (this as {pristine: boolean}).pristine = true;
     this._pendingDirty = false;
 
-    this._forEachChild((control: AbstractControl) => { control.markAsPristine({onlySelf: true}); });
+    this._forEachChild((control: AbstractControl) => {
+      control.markAsPristine({onlySelf: true});
+    });
 
     if (this._parent && !opts.onlySelf) {
       this._parent._updatePristine(opts);
@@ -477,14 +590,14 @@ export abstract class AbstractControl {
    * @param opts Configuration options that determine how the control propagates changes and
    * emits events after marking is applied.
    * * `onlySelf`: When true, mark only this control. When false or not supplied,
-   * marks all direct ancestors. Default is false..
+   * marks all direct ancestors. Default is false.
    * * `emitEvent`: When true or not supplied (the default), the `statusChanges`
    * observable emits an event with the latest status the control is marked pending.
    * When false, no events are emitted.
    *
    */
   markAsPending(opts: {onlySelf?: boolean, emitEvent?: boolean} = {}): void {
-    (this as{status: string}).status = PENDING;
+    (this as {status: string}).status = PENDING;
 
     if (opts.emitEvent !== false) {
       (this.statusChanges as EventEmitter<any>).emit(this.status);
@@ -506,7 +619,7 @@ export abstract class AbstractControl {
    * @param opts Configuration options that determine how the control propagates
    * changes and emits events after the control is disabled.
    * * `onlySelf`: When true, mark only this control. When false or not supplied,
-   * marks all direct ancestors. Default is false..
+   * marks all direct ancestors. Default is false.
    * * `emitEvent`: When true or not supplied (the default), both the `statusChanges` and
    * `valueChanges`
    * observables emit events with the latest status and value when the control is disabled.
@@ -517,10 +630,11 @@ export abstract class AbstractControl {
     // parent's dirtiness based on the children.
     const skipPristineCheck = this._parentMarkedDirty(opts.onlySelf);
 
-    (this as{status: string}).status = DISABLED;
-    (this as{errors: ValidationErrors | null}).errors = null;
-    this._forEachChild(
-        (control: AbstractControl) => { control.disable({...opts, onlySelf: true}); });
+    (this as {status: string}).status = DISABLED;
+    (this as {errors: ValidationErrors | null}).errors = null;
+    this._forEachChild((control: AbstractControl) => {
+      control.disable({...opts, onlySelf: true});
+    });
     this._updateValue();
 
     if (opts.emitEvent !== false) {
@@ -544,7 +658,7 @@ export abstract class AbstractControl {
    * @param opts Configure options that control how the control propagates changes and
    * emits events when marked as untouched
    * * `onlySelf`: When true, mark only this control. When false or not supplied,
-   * marks all direct ancestors. Default is false..
+   * marks all direct ancestors. Default is false.
    * * `emitEvent`: When true or not supplied (the default), both the `statusChanges` and
    * `valueChanges`
    * observables emit events with the latest status and value when the control is enabled.
@@ -555,9 +669,10 @@ export abstract class AbstractControl {
     // parent's dirtiness based on the children.
     const skipPristineCheck = this._parentMarkedDirty(opts.onlySelf);
 
-    (this as{status: string}).status = VALID;
-    this._forEachChild(
-        (control: AbstractControl) => { control.enable({...opts, onlySelf: true}); });
+    (this as {status: string}).status = VALID;
+    this._forEachChild((control: AbstractControl) => {
+      control.enable({...opts, onlySelf: true});
+    });
     this.updateValueAndValidity({onlySelf: true, emitEvent: opts.emitEvent});
 
     this._updateAncestors({...opts, skipPristineCheck});
@@ -578,7 +693,9 @@ export abstract class AbstractControl {
   /**
    * @param parent Sets the parent of the control
    */
-  setParent(parent: FormGroup|FormArray): void { this._parent = parent; }
+  setParent(parent: FormGroup|FormArray): void {
+    this._parent = parent;
+  }
 
   /**
    * Sets the value of the control. Abstract method (implemented in sub-classes).
@@ -603,7 +720,7 @@ export abstract class AbstractControl {
    * @param opts Configuration options determine how the control propagates changes and emits events
    * after updates and validity checks are applied.
    * * `onlySelf`: When true, only update this control. When false or not supplied,
-   * update all direct ancestors. Default is false..
+   * update all direct ancestors. Default is false.
    * * `emitEvent`: When true or not supplied (the default), both the `statusChanges` and
    * `valueChanges`
    * observables emit events with the latest status and value when the control is updated.
@@ -615,8 +732,8 @@ export abstract class AbstractControl {
 
     if (this.enabled) {
       this._cancelExistingSubscription();
-      (this as{errors: ValidationErrors | null}).errors = this._runValidator();
-      (this as{status: string}).status = this._calculateStatus();
+      (this as {errors: ValidationErrors | null}).errors = this._runValidator();
+      (this as {status: string}).status = this._calculateStatus();
 
       if (this.status === VALID || this.status === PENDING) {
         this._runAsyncValidator(opts.emitEvent);
@@ -640,7 +757,7 @@ export abstract class AbstractControl {
   }
 
   private _setInitialStatus() {
-    (this as{status: string}).status = this._allControlsDisabled() ? DISABLED : VALID;
+    (this as {status: string}).status = this._allControlsDisabled() ? DISABLED : VALID;
   }
 
   private _runValidator(): ValidationErrors|null {
@@ -649,16 +766,23 @@ export abstract class AbstractControl {
 
   private _runAsyncValidator(emitEvent?: boolean): void {
     if (this.asyncValidator) {
-      (this as{status: string}).status = PENDING;
+      (this as {status: string}).status = PENDING;
+      this._hasOwnPendingAsyncValidator = true;
       const obs = toObservable(this.asyncValidator(this));
-      this._asyncValidationSubscription =
-          obs.subscribe((errors: ValidationErrors | null) => this.setErrors(errors, {emitEvent}));
+      this._asyncValidationSubscription = obs.subscribe((errors: ValidationErrors|null) => {
+        this._hasOwnPendingAsyncValidator = false;
+        // This will trigger the recalculation of the validation status, which depends on
+        // the state of the asynchronous validation (whether it is in progress or not). So, it is
+        // necessary that we have updated the `_hasOwnPendingAsyncValidator` boolean flag first.
+        this.setErrors(errors, {emitEvent});
+      });
     }
   }
 
   private _cancelExistingSubscription(): void {
     if (this._asyncValidationSubscription) {
       this._asyncValidationSubscription.unsubscribe();
+      this._hasOwnPendingAsyncValidator = false;
     }
   }
 
@@ -668,6 +792,7 @@ export abstract class AbstractControl {
    * Calling `setErrors` also updates the validity of the parent control.
    *
    * @usageNotes
+   *
    * ### Manually set the errors for a control
    *
    * ```
@@ -685,7 +810,7 @@ export abstract class AbstractControl {
    * ```
    */
   setErrors(errors: ValidationErrors|null, opts: {emitEvent?: boolean} = {}): void {
-    (this as{errors: ValidationErrors | null}).errors = errors;
+    (this as {errors: ValidationErrors | null}).errors = errors;
     this._updateControlsErrors(opts.emitEvent !== false);
   }
 
@@ -706,7 +831,9 @@ export abstract class AbstractControl {
    *
    * * `this.form.get(['person', 'name']);`
    */
-  get(path: Array<string|number>|string): AbstractControl|null { return _find(this, path, '.'); }
+  get(path: Array<string|number>|string): AbstractControl|null {
+    return _find(this, path, '.');
+  }
 
   /**
    * @description
@@ -789,7 +916,7 @@ export abstract class AbstractControl {
 
   /** @internal */
   _updateControlsErrors(emitEvent: boolean): void {
-    (this as{status: string}).status = this._calculateStatus();
+    (this as {status: string}).status = this._calculateStatus();
 
     if (emitEvent) {
       (this.statusChanges as EventEmitter<string>).emit(this.status);
@@ -802,15 +929,15 @@ export abstract class AbstractControl {
 
   /** @internal */
   _initObservables() {
-    (this as{valueChanges: Observable<any>}).valueChanges = new EventEmitter();
-    (this as{statusChanges: Observable<any>}).statusChanges = new EventEmitter();
+    (this as {valueChanges: Observable<any>}).valueChanges = new EventEmitter();
+    (this as {statusChanges: Observable<any>}).statusChanges = new EventEmitter();
   }
 
 
   private _calculateStatus(): string {
     if (this._allControlsDisabled()) return DISABLED;
     if (this.errors) return INVALID;
-    if (this._anyControlsHaveStatus(PENDING)) return PENDING;
+    if (this._hasOwnPendingAsyncValidator || this._anyControlsHaveStatus(PENDING)) return PENDING;
     if (this._anyControlsHaveStatus(INVALID)) return INVALID;
     return VALID;
   }
@@ -847,7 +974,7 @@ export abstract class AbstractControl {
 
   /** @internal */
   _updatePristine(opts: {onlySelf?: boolean} = {}): void {
-    (this as{pristine: boolean}).pristine = !this._anyControlsDirty();
+    (this as {pristine: boolean}).pristine = !this._anyControlsDirty();
 
     if (this._parent && !opts.onlySelf) {
       this._parent._updatePristine(opts);
@@ -856,7 +983,7 @@ export abstract class AbstractControl {
 
   /** @internal */
   _updateTouched(opts: {onlySelf?: boolean} = {}): void {
-    (this as{touched: boolean}).touched = this._anyControlsTouched();
+    (this as {touched: boolean}).touched = this._anyControlsTouched();
 
     if (this._parent && !opts.onlySelf) {
       this._parent._updateTouched(opts);
@@ -873,12 +1000,14 @@ export abstract class AbstractControl {
   }
 
   /** @internal */
-  _registerOnCollectionChange(fn: () => void): void { this._onCollectionChange = fn; }
+  _registerOnCollectionChange(fn: () => void): void {
+    this._onCollectionChange = fn;
+  }
 
   /** @internal */
   _setUpdateStrategy(opts?: ValidatorFn|ValidatorFn[]|AbstractControlOptions|null): void {
-    if (isOptionsObj(opts) && (opts as AbstractControlOptions).updateOn != null) {
-      this._updateOn = (opts as AbstractControlOptions).updateOn !;
+    if (isOptionsObj(opts) && opts.updateOn != null) {
+      this._updateOn = opts.updateOn!;
     }
   }
 
@@ -899,7 +1028,7 @@ export abstract class AbstractControl {
  * This is one of the three fundamental building blocks of Angular forms, along with
  * `FormGroup` and `FormArray`. It extends the `AbstractControl` class that
  * implements most of the base functionality for accessing the value, validation status,
- * user interactions and events.
+ * user interactions and events. See [usage examples below](#usage-notes).
  *
  * @see `AbstractControl`
  * @see [Reactive Forms Guide](guide/reactive-forms)
@@ -1001,25 +1130,23 @@ export class FormControl extends AbstractControl {
   _pendingChange: any;
 
   /**
-  * Creates a new `FormControl` instance.
-  *
-  * @param formState Initializes the control with an initial value,
-  * or an object that defines the initial value and disabled state.
-  *
-  * @param validatorOrOpts A synchronous validator function, or an array of
-  * such functions, or an `AbstractControlOptions` object that contains validation functions
-  * and a validation trigger.
-  *
-  * @param asyncValidator A single async validator or array of async validator functions
-  *
-  */
+   * Creates a new `FormControl` instance.
+   *
+   * @param formState Initializes the control with an initial value,
+   * or an object that defines the initial value and disabled state.
+   *
+   * @param validatorOrOpts A synchronous validator function, or an array of
+   * such functions, or an `AbstractControlOptions` object that contains validation functions
+   * and a validation trigger.
+   *
+   * @param asyncValidator A single async validator or array of async validator functions
+   *
+   */
   constructor(
       formState: any = null,
       validatorOrOpts?: ValidatorFn|ValidatorFn[]|AbstractControlOptions|null,
       asyncValidator?: AsyncValidatorFn|AsyncValidatorFn[]|null) {
-    super(
-        coerceToValidator(validatorOrOpts),
-        coerceToAsyncValidator(asyncValidator, validatorOrOpts));
+    super(pickValidators(validatorOrOpts), pickAsyncValidators(asyncValidator, validatorOrOpts));
     this._applyFormState(formState);
     this._setUpdateStrategy(validatorOrOpts);
     this.updateValueAndValidity({onlySelf: true, emitEvent: false});
@@ -1055,7 +1182,7 @@ export class FormControl extends AbstractControl {
     emitModelToViewChange?: boolean,
     emitViewToModelChange?: boolean
   } = {}): void {
-    (this as{value: any}).value = this._pendingValue = value;
+    (this as {value: any}).value = this._pendingValue = value;
     if (this._onChange.length && options.emitModelToViewChange !== false) {
       this._onChange.forEach(
           (changeFn) => changeFn(this.value, options.emitViewToModelChange !== false));
@@ -1115,19 +1242,25 @@ export class FormControl extends AbstractControl {
   /**
    * @internal
    */
-  _anyControls(condition: Function): boolean { return false; }
+  _anyControls(condition: Function): boolean {
+    return false;
+  }
 
   /**
    * @internal
    */
-  _allControlsDisabled(): boolean { return this.disabled; }
+  _allControlsDisabled(): boolean {
+    return this.disabled;
+  }
 
   /**
    * Register a listener for change events.
    *
    * @param fn The method that is called when the value changes
    */
-  registerOnChange(fn: Function): void { this._onChange.push(fn); }
+  registerOnChange(fn: Function): void {
+    this._onChange.push(fn);
+  }
 
   /**
    * @internal
@@ -1167,11 +1300,11 @@ export class FormControl extends AbstractControl {
 
   private _applyFormState(formState: any) {
     if (this._isBoxedValue(formState)) {
-      (this as{value: any}).value = this._pendingValue = formState.value;
+      (this as {value: any}).value = this._pendingValue = formState.value;
       formState.disabled ? this.disable({onlySelf: true, emitEvent: false}) :
                            this.enable({onlySelf: true, emitEvent: false});
     } else {
-      (this as{value: any}).value = this._pendingValue = formState;
+      (this as {value: any}).value = this._pendingValue = formState;
     }
   }
 }
@@ -1250,25 +1383,23 @@ export class FormControl extends AbstractControl {
  */
 export class FormGroup extends AbstractControl {
   /**
-  * Creates a new `FormGroup` instance.
-  *
-  * @param controls A collection of child controls. The key for each child is the name
-  * under which it is registered.
-  *
-  * @param validatorOrOpts A synchronous validator function, or an array of
-  * such functions, or an `AbstractControlOptions` object that contains validation functions
-  * and a validation trigger.
-  *
-  * @param asyncValidator A single async validator or array of async validator functions
-  *
-  */
+   * Creates a new `FormGroup` instance.
+   *
+   * @param controls A collection of child controls. The key for each child is the name
+   * under which it is registered.
+   *
+   * @param validatorOrOpts A synchronous validator function, or an array of
+   * such functions, or an `AbstractControlOptions` object that contains validation functions
+   * and a validation trigger.
+   *
+   * @param asyncValidator A single async validator or array of async validator functions
+   *
+   */
   constructor(
       public controls: {[key: string]: AbstractControl},
       validatorOrOpts?: ValidatorFn|ValidatorFn[]|AbstractControlOptions|null,
       asyncValidator?: AsyncValidatorFn|AsyncValidatorFn[]|null) {
-    super(
-        coerceToValidator(validatorOrOpts),
-        coerceToAsyncValidator(asyncValidator, validatorOrOpts));
+    super(pickValidators(validatorOrOpts), pickAsyncValidators(asyncValidator, validatorOrOpts));
     this._initObservables();
     this._setUpdateStrategy(validatorOrOpts);
     this._setUpControls();
@@ -1338,7 +1469,7 @@ export class FormGroup extends AbstractControl {
    * Reports false for disabled controls. If you'd like to check for existence in the group
    * only, use {@link AbstractControl#get get} instead.
    *
-   * @param name The control name to check for existence in the collection
+   * @param controlName The control name to check for existence in the collection
    *
    * @returns false for disabled controls, true otherwise.
    */
@@ -1366,7 +1497,7 @@ export class FormGroup extends AbstractControl {
    * ```
    *
    * @throws When strict checks fail, such as setting the value of a control
-   * that doesn't exist or if you excluding the value of a control.
+   * that doesn't exist or if you exclude a value of a control that does exist.
    *
    * @param value The new value for the control that matches the structure of the group.
    * @param options Configuration options that determine how the control propagates changes
@@ -1443,7 +1574,7 @@ export class FormGroup extends AbstractControl {
    * is a standalone value or a form state object with both a value and a disabled
    * status.
    *
-   * @param formState Resets the control with an initial value,
+   * @param value Resets the control with an initial value,
    * or an object that defines the initial value and disabled state.
    *
    * @param options Configuration options that determine how the control propagates changes
@@ -1551,15 +1682,19 @@ export class FormGroup extends AbstractControl {
   }
 
   /** @internal */
-  _updateValue(): void { (this as{value: any}).value = this._reduceValue(); }
+  _updateValue(): void {
+    (this as {value: any}).value = this._reduceValue();
+  }
 
   /** @internal */
   _anyControls(condition: Function): boolean {
-    let res = false;
-    this._forEachChild((control: AbstractControl, name: string) => {
-      res = res || (this.contains(name) && condition(control));
-    });
-    return res;
+    for (const controlName of Object.keys(this.controls)) {
+      const control = this.controls[controlName];
+      if (this.contains(controlName) && condition(control)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** @internal */
@@ -1576,8 +1711,9 @@ export class FormGroup extends AbstractControl {
   /** @internal */
   _reduceChildren(initValue: any, fn: Function) {
     let res = initValue;
-    this._forEachChild(
-        (control: AbstractControl, name: string) => { res = fn(res, control, name); });
+    this._forEachChild((control: AbstractControl, name: string) => {
+      res = fn(res, control, name);
+    });
     return res;
   }
 
@@ -1642,7 +1778,7 @@ export class FormGroup extends AbstractControl {
  * ], {validators: myValidator, asyncValidators: myAsyncValidator});
  * ```
  *
-  * ### Set the updateOn property for all controls in a form array
+ * ### Set the updateOn property for all controls in a form array
  *
  * The options object is used to set a default value for each child
  * control's `updateOn` property. If you set `updateOn` to `'blur'` at the
@@ -1667,25 +1803,23 @@ export class FormGroup extends AbstractControl {
  */
 export class FormArray extends AbstractControl {
   /**
-  * Creates a new `FormArray` instance.
-  *
-  * @param controls An array of child controls. Each child control is given an index
-  * where it is registered.
-  *
-  * @param validatorOrOpts A synchronous validator function, or an array of
-  * such functions, or an `AbstractControlOptions` object that contains validation functions
-  * and a validation trigger.
-  *
-  * @param asyncValidator A single async validator or array of async validator functions
-  *
-  */
+   * Creates a new `FormArray` instance.
+   *
+   * @param controls An array of child controls. Each child control is given an index
+   * where it is registered.
+   *
+   * @param validatorOrOpts A synchronous validator function, or an array of
+   * such functions, or an `AbstractControlOptions` object that contains validation functions
+   * and a validation trigger.
+   *
+   * @param asyncValidator A single async validator or array of async validator functions
+   *
+   */
   constructor(
       public controls: AbstractControl[],
       validatorOrOpts?: ValidatorFn|ValidatorFn[]|AbstractControlOptions|null,
       asyncValidator?: AsyncValidatorFn|AsyncValidatorFn[]|null) {
-    super(
-        coerceToValidator(validatorOrOpts),
-        coerceToAsyncValidator(asyncValidator, validatorOrOpts));
+    super(pickValidators(validatorOrOpts), pickAsyncValidators(asyncValidator, validatorOrOpts));
     this._initObservables();
     this._setUpdateStrategy(validatorOrOpts);
     this._setUpControls();
@@ -1697,7 +1831,9 @@ export class FormArray extends AbstractControl {
    *
    * @param index Index in the array to retrieve the control
    */
-  at(index: number): AbstractControl { return this.controls[index]; }
+  at(index: number): AbstractControl {
+    return this.controls[index];
+  }
 
   /**
    * Insert a new `AbstractControl` at the end of the array.
@@ -1757,7 +1893,9 @@ export class FormArray extends AbstractControl {
   /**
    * Length of the control array.
    */
-  get length(): number { return this.controls.length; }
+  get length(): number {
+    return this.controls.length;
+  }
 
   /**
    * Sets the value of the `FormArray`. It accepts an array that matches
@@ -1974,12 +2112,14 @@ export class FormArray extends AbstractControl {
 
   /** @internal */
   _forEachChild(cb: Function): void {
-    this.controls.forEach((control: AbstractControl, index: number) => { cb(control, index); });
+    this.controls.forEach((control: AbstractControl, index: number) => {
+      cb(control, index);
+    });
   }
 
   /** @internal */
   _updateValue(): void {
-    (this as{value: any}).value =
+    (this as {value: any}).value =
         this.controls.filter((control) => control.enabled || this.disabled)
             .map((control) => control.value);
   }

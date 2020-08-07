@@ -1,29 +1,40 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
 
-import * as tss from 'typescript/lib/tsserverlibrary'; // used as type only
+import * as tss from 'typescript/lib/tsserverlibrary';
 
 import {createLanguageService} from './language_service';
 import {TypeScriptServiceHost} from './typescript_host';
 
-const projectHostMap = new WeakMap<tss.server.Project, TypeScriptServiceHost>();
+// Use a WeakMap to keep track of Project to Host mapping so that when Project
+// is deleted Host could be garbage collected.
+const PROJECT_MAP = new WeakMap<tss.server.Project, TypeScriptServiceHost>();
 
-export function getExternalFiles(project: tss.server.Project): string[]|undefined {
-  const host = projectHostMap.get(project);
-  if (host) {
-    host.getAnalyzedModules();
-    const externalFiles = host.getTemplateReferences();
-    return externalFiles;
+/**
+ * This function is called by tsserver to retrieve the external (non-TS) files
+ * that should belong to the specified `project`. For Angular, these files are
+ * external templates. This is called once when the project is loaded, then
+ * every time when the program is updated.
+ * @param project Project for which external files should be retrieved.
+ */
+export function getExternalFiles(project: tss.server.Project): string[] {
+  if (!project.hasRoots()) {
+    // During project initialization where there is no root files yet we should
+    // not do any work.
+    return [];
   }
+  const ngLsHost = PROJECT_MAP.get(project);
+  ngLsHost?.getAnalyzedModules();
+  return ngLsHost?.getExternalTemplates() || [];
 }
 
 export function create(info: tss.server.PluginCreateInfo): tss.LanguageService {
-  const {project, languageService: tsLS, languageServiceHost: tsLSHost, config} = info;
+  const {languageService: tsLS, languageServiceHost: tsLSHost, config, project} = info;
   // This plugin could operate under two different modes:
   // 1. TS + Angular
   //    Plugin augments TS language service to provide additional Angular
@@ -36,11 +47,10 @@ export function create(info: tss.server.PluginCreateInfo): tss.LanguageService {
   const angularOnly = config ? config.angularOnly === true : false;
   const ngLSHost = new TypeScriptServiceHost(tsLSHost, tsLS);
   const ngLS = createLanguageService(ngLSHost);
-  projectHostMap.set(project, ngLSHost);
+  PROJECT_MAP.set(project, ngLSHost);
 
   function getCompletionsAtPosition(
-      fileName: string, position: number,
-      options: tss.GetCompletionsAtPositionOptions | undefined) {
+      fileName: string, position: number, options: tss.GetCompletionsAtPositionOptions|undefined) {
     if (!angularOnly) {
       const results = tsLS.getCompletionsAtPosition(fileName, position, options);
       if (results && results.entries.length) {
@@ -48,7 +58,7 @@ export function create(info: tss.server.PluginCreateInfo): tss.LanguageService {
         return results;
       }
     }
-    return ngLS.getCompletionsAt(fileName, position);
+    return ngLS.getCompletionsAtPosition(fileName, position, options);
   }
 
   function getQuickInfoAtPosition(fileName: string, position: number): tss.QuickInfo|undefined {
@@ -59,7 +69,7 @@ export function create(info: tss.server.PluginCreateInfo): tss.LanguageService {
         return result;
       }
     }
-    return ngLS.getHoverAt(fileName, position);
+    return ngLS.getQuickInfoAtPosition(fileName, position);
   }
 
   function getSemanticDiagnostics(fileName: string): tss.Diagnostic[] {
@@ -68,7 +78,7 @@ export function create(info: tss.server.PluginCreateInfo): tss.LanguageService {
       results.push(...tsLS.getSemanticDiagnostics(fileName));
     }
     // For semantic diagnostics we need to combine both TS + Angular results
-    results.push(...ngLS.getDiagnostics(fileName));
+    results.push(...ngLS.getSemanticDiagnostics(fileName));
     return results;
   }
 
@@ -81,7 +91,7 @@ export function create(info: tss.server.PluginCreateInfo): tss.LanguageService {
         return results;
       }
     }
-    const result = ngLS.getDefinitionAt(fileName, position);
+    const result = ngLS.getDefinitionAndBoundSpan(fileName, position);
     if (!result || !result.definitions || !result.definitions.length) {
       return;
     }
@@ -97,7 +107,7 @@ export function create(info: tss.server.PluginCreateInfo): tss.LanguageService {
         return result;
       }
     }
-    return ngLS.getDefinitionAt(fileName, position);
+    return ngLS.getDefinitionAndBoundSpan(fileName, position);
   }
 
   const proxy: tss.LanguageService = Object.assign(
@@ -105,8 +115,11 @@ export function create(info: tss.server.PluginCreateInfo): tss.LanguageService {
       {}, tsLS,
       // Then override the methods supported by Angular language service
       {
-          getCompletionsAtPosition, getQuickInfoAtPosition, getSemanticDiagnostics,
-          getDefinitionAtPosition, getDefinitionAndBoundSpan,
+        getCompletionsAtPosition,
+        getQuickInfoAtPosition,
+        getSemanticDiagnostics,
+        getDefinitionAtPosition,
+        getDefinitionAndBoundSpan,
       });
   return proxy;
 }

@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -28,7 +28,7 @@ export function isFromDtsFile(node: ts.Node): boolean {
   return sf !== undefined && sf.isDeclarationFile;
 }
 
-export function nodeNameForError(node: ts.Node & {name?: ts.Node}): string {
+export function nodeNameForError(node: ts.Node&{name?: ts.Node}): string {
   if (node.name !== undefined && ts.isIdentifier(node.name)) {
     return node.name.text;
   } else {
@@ -58,7 +58,7 @@ export function getTokenAtPosition(sf: ts.SourceFile, pos: number): ts.Node {
   return (ts as any).getTokenAtPosition(sf, pos);
 }
 
-export function identifierOfNode(decl: ts.Node & {name?: ts.Node}): ts.Identifier|null {
+export function identifierOfNode(decl: ts.Node&{name?: ts.Node}): ts.Identifier|null {
   if (decl.name !== undefined && ts.isIdentifier(decl.name)) {
     return decl.name;
   } else {
@@ -67,8 +67,19 @@ export function identifierOfNode(decl: ts.Node & {name?: ts.Node}): ts.Identifie
 }
 
 export function isDeclaration(node: ts.Node): node is ts.Declaration {
-  return false || ts.isEnumDeclaration(node) || ts.isClassDeclaration(node) ||
-      ts.isFunctionDeclaration(node) || ts.isVariableDeclaration(node);
+  return isValueDeclaration(node) || isTypeDeclaration(node);
+}
+
+export function isValueDeclaration(node: ts.Node): node is ts.ClassDeclaration|
+    ts.FunctionDeclaration|ts.VariableDeclaration {
+  return ts.isClassDeclaration(node) || ts.isFunctionDeclaration(node) ||
+      ts.isVariableDeclaration(node);
+}
+
+export function isTypeDeclaration(node: ts.Node): node is ts.EnumDeclaration|
+    ts.TypeAliasDeclaration|ts.InterfaceDeclaration {
+  return ts.isEnumDeclaration(node) || ts.isTypeAliasDeclaration(node) ||
+      ts.isInterfaceDeclaration(node);
 }
 
 export function isExported(node: ts.Declaration): boolean {
@@ -94,7 +105,7 @@ export function getRootDirs(host: ts.CompilerHost, options: ts.CompilerOptions):
   // See:
   // https://github.com/Microsoft/TypeScript/blob/3f7357d37f66c842d70d835bc925ec2a873ecfec/src/compiler/sys.ts#L650
   // Also compiler options might be set via an API which doesn't normalize paths
-  return rootDirs.map(rootDir => absoluteFrom(rootDir));
+  return rootDirs.map(rootDir => absoluteFrom(host.getCanonicalFileName(rootDir)));
 }
 
 export function nodeDebugInfo(node: ts.Node): string {
@@ -111,11 +122,24 @@ export function nodeDebugInfo(node: ts.Node): string {
  */
 export function resolveModuleName(
     moduleName: string, containingFile: string, compilerOptions: ts.CompilerOptions,
-    compilerHost: ts.CompilerHost): ts.ResolvedModule|undefined {
+    compilerHost: ts.ModuleResolutionHost&Pick<ts.CompilerHost, 'resolveModuleNames'>,
+    moduleResolutionCache: ts.ModuleResolutionCache|null): ts.ResolvedModule|undefined {
   if (compilerHost.resolveModuleNames) {
-    return compilerHost.resolveModuleNames([moduleName], containingFile)[0];
+    return compilerHost.resolveModuleNames(
+        [moduleName], containingFile,
+        undefined,  // reusedNames
+        undefined,  // redirectedReference
+        compilerOptions)[0];
   } else {
-    return ts.resolveModuleName(moduleName, containingFile, compilerOptions, compilerHost)
+    return ts
+        .resolveModuleName(
+            moduleName, containingFile, compilerOptions, compilerHost,
+            moduleResolutionCache !== null ? moduleResolutionCache : undefined)
         .resolvedModule;
   }
 }
+
+/**
+ * Asserts that the keys `K` form a subset of the keys of `T`.
+ */
+export type SubsetOfKeys<T, K extends keyof T> = K;

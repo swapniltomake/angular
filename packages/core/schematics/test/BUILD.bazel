@@ -5,11 +5,12 @@ ts_library(
     testonly = True,
     srcs = glob(["**/*.ts"]),
     data = [
-        "test-migrations.json",
         "//packages/core/schematics:migrations.json",
     ],
     deps = [
+        "//packages/core/schematics/migrations/dynamic-queries",
         "//packages/core/schematics/migrations/missing-injectable",
+        "//packages/core/schematics/migrations/module-with-providers",
         "//packages/core/schematics/migrations/move-document",
         "//packages/core/schematics/migrations/renderer-to-renderer2",
         "//packages/core/schematics/migrations/static-queries",
@@ -25,7 +26,7 @@ ts_library(
 )
 
 jasmine_node_test(
-    name = "google3",
+    name = "test",
     deps = [
         ":test_lib",
         "@npm//shelljs",

@@ -1,4 +1,4 @@
-# AngularJS to Angular Concepts: Quick Reference
+# AngularJS to Angular concepts: Quick reference
 
 
 {@a top}
@@ -74,8 +74,7 @@ The following table lists some of the key AngularJS template features with their
       The context of the binding is implied and is always the
       associated component, so it needs no reference variable.
 
-      For more information, see the [Interpolation](guide/template-syntax#interpolation)
-      section of the [Template Syntax](guide/template-syntax) page.
+      For more information, see the [Interpolation](guide/interpolation) guide.
     </td>
 
   </tr>
@@ -141,8 +140,8 @@ The following table lists some of the key AngularJS template features with their
 
       Angular has true template input variables that are explicitly defined using the `let` keyword.
 
-      For more information, see the [ngFor micro-syntax](guide/template-syntax#microsyntax)
-      section of the [Template Syntax](guide/template-syntax) page.
+      For more information, see the [ngFor micro-syntax](guide/built-in-directives#microsyntax)
+      section of the [Built-in Directives](guide/built-in-directives) page.
     </td>
 
   </tr>
@@ -258,8 +257,7 @@ The following are some of the key AngularJS built-in directives and their equiva
       Angular also has **class binding**, which is a good way to add or remove a single class,
       as shown in the third example.
 
-      For more information see the [Attribute, class, and style bindings](guide/template-syntax#other-bindings)
-      section of the [Template Syntax](guide/template-syntax) page.
+      For more information see [Attribute, class, and style bindings](guide/attribute-binding) page.
 
     </td>
 
@@ -309,8 +307,7 @@ The following are some of the key AngularJS built-in directives and their equiva
 
       For a list of DOM events, see: https://developer.mozilla.org/en-US/docs/Web/Events.
 
-      For more information, see the [Event binding](guide/template-syntax#event-binding)
-      section of the [Template Syntax](guide/template-syntax) page.
+      For more information, see the [Event binding](guide/event-binding) page.
 
     </td>
 
@@ -407,16 +404,15 @@ The following are some of the key AngularJS built-in directives and their equiva
       Angular uses property binding; there is no built-in *href* directive.
       Place the element's `href` property in square brackets and set it to a quoted template expression.
 
-      For more information see the [Property binding](guide/template-syntax#property-binding)
-      section of the [Template Syntax](guide/template-syntax) page.
+      For more information see the [Property binding](guide/property-binding) page.
 
       In Angular, `href` is no longer used for routing. Routing uses `routerLink`, as shown in the following example.
 
       <code-example hideCopy path="ajs-quick-reference/src/app/app.component.html" region="router-link"></code-example>
 
 
-      For more information on routing, see the [RouterLink binding](guide/router#router-link)
-      section of the [Routing & Navigation](guide/router) page.
+      For more information on routing, see [Defining a basic route](guide/router#basic-route)
+      in the [Routing & Navigation](guide/router) page.
 
     </td>
 
@@ -487,8 +483,8 @@ The following are some of the key AngularJS built-in directives and their equiva
       and event binding (from the view to the component), thereby providing two-way binding.
 
       For more information on two-way binding with `ngModel`, see the [NgModel&mdash;Two-way binding to
-      form elements with `[(ngModel)]`](../guide/template-syntax.html#ngModel)
-      section of the [Template Syntax](guide/template-syntax) page.
+      form elements with `[(ngModel)]`](../guide/built-in-directives#ngModel)
+      section of the [Built-in directives](guide/built-in-directives) page.
     </td>
 
   </tr>
@@ -570,8 +566,7 @@ The following are some of the key AngularJS built-in directives and their equiva
 
       In this example, the `<div>` element is hidden if the `favoriteHero` variable is not truthy.
 
-      For more information on property binding, see the [Property binding](guide/template-syntax#property-binding)
-      section of the [Template Syntax](guide/template-syntax) page.
+      For more information on property binding, see the [Property binding](guide/property-binding) page.
     </td>
 
   </tr>
@@ -604,8 +599,7 @@ The following are some of the key AngularJS built-in directives and their equiva
       Angular uses property binding; there is no built-in *src* directive.
       Place the `src` property in square brackets and set it to a quoted template expression.
 
-      For more information on property binding, see the [Property binding](guide/template-syntax#property-binding)
-      section of the [Template Syntax](guide/template-syntax) page.
+      For more information on property binding, see the [Property binding](guide/property-binding) page.
     </td>
 
   </tr>
@@ -644,11 +638,11 @@ The following are some of the key AngularJS built-in directives and their equiva
 
       Angular also has **style binding**, which is good way to set a single style. This is shown in the second example.
 
-      For more information on style binding, see the [Style binding](guide/template-syntax#style-binding) section of the
-      [Template Syntax](guide/template-syntax) page.
+      For more information on style binding, see the [Style binding](guide/attribute-binding#style-binding) section of the
+      [Attribute binding](guide/attribute-binding) page.
 
-      For more information on the `ngStyle` directive, see [NgStyle](guide/template-syntax#ngStyle)
-      section of the [Template Syntax](guide/template-syntax) page.
+      For more information on the `ngStyle` directive, see the [NgStyle](guide/built-in-directives#ngStyle)
+      section of the [Built-in directives](guide/built-in-directives) page.
     </td>
 
   </tr>
@@ -704,8 +698,8 @@ The following are some of the key AngularJS built-in directives and their equiva
 
       The (*) before `ngSwitchCase` and `ngSwitchDefault` is required in this example.
 
-      For more information, see [The NgSwitch directives](guide/template-syntax#ngSwitch)
-      section of the [Template Syntax](guide/template-syntax) page.
+      For more information, see [The NgSwitch directives](guide/built-in-directives#ngSwitch)
+      section of the [Built-in directives](guide/built-in-directives) page.
     </td>
 
   </tr>
@@ -1148,9 +1142,7 @@ The Angular code is shown using TypeScript.
       <code-example hideCopy path="ajs-quick-reference/src/app/movie-list.component.ts" region="class"></code-example>
 
 
-      In Angular, you create a component class.
-
-      NOTE: If you are using TypeScript with AngularJS, you must use the `export` keyword to export the component class.
+      In Angular, you create a component class to contain the data model and control methods. Use the TypeScript <code>export</code> keyword to export the class so that the functionality can be imported into NgModules.
 
       For more information, see the [Components](guide/architecture#components)
       section of the [Architecture Overview](guide/architecture) page.
@@ -1273,4 +1265,3 @@ also encapsulate a style sheet within a specific component.
   </tr>
 
 </table>
-

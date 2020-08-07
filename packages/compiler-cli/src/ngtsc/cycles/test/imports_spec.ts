@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -55,9 +55,11 @@ runInEachFileSystem(() => {
 
   function makeImportGraph(graph: string): {program: ts.Program, graph: ImportGraph} {
     const {program, options, host} = makeProgramFromGraph(getFileSystem(), graph);
+    const moduleResolver =
+        new ModuleResolver(program, options, host, /* moduleResolutionCache */ null);
     return {
       program,
-      graph: new ImportGraph(new ModuleResolver(program, options, host)),
+      graph: new ImportGraph(moduleResolver),
     };
   }
 

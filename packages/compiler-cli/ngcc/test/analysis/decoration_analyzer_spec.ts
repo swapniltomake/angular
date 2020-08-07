@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -9,27 +9,29 @@ import * as ts from 'typescript';
 
 import {FatalDiagnosticError, makeDiagnostic} from '../../../src/ngtsc/diagnostics';
 import {absoluteFrom, getFileSystem, getSourceFileOrError} from '../../../src/ngtsc/file_system';
-import {TestFile, runInEachFileSystem} from '../../../src/ngtsc/file_system/testing';
+import {runInEachFileSystem, TestFile} from '../../../src/ngtsc/file_system/testing';
+import {MockLogger} from '../../../src/ngtsc/logging/testing';
 import {ClassDeclaration, Decorator} from '../../../src/ngtsc/reflection';
-import {DecoratorHandler, DetectResult} from '../../../src/ngtsc/transform';
+import {AnalysisOutput, CompileResult, DecoratorHandler, DetectResult, HandlerPrecedence} from '../../../src/ngtsc/transform';
 import {loadFakeCore, loadTestFiles} from '../../../test/helpers';
 import {DecorationAnalyzer} from '../../src/analysis/decoration_analyzer';
 import {NgccReferencesRegistry} from '../../src/analysis/ngcc_references_registry';
 import {CompiledClass, DecorationAnalyses} from '../../src/analysis/types';
 import {Esm2015ReflectionHost} from '../../src/host/esm2015_host';
 import {Migration, MigrationHost} from '../../src/migrations/migration';
-import {MockLogger} from '../helpers/mock_logger';
 import {getRootFiles, makeTestEntryPointBundle} from '../helpers/utils';
 
-type DecoratorHandlerWithResolve = DecoratorHandler<any, any>& {
-  resolve: NonNullable<DecoratorHandler<any, any>['resolve']>;
+type DecoratorHandlerWithResolve = DecoratorHandler<unknown, unknown, unknown>&{
+  resolve: NonNullable<DecoratorHandler<unknown, unknown, unknown>['resolve']>;
 };
 
 runInEachFileSystem(() => {
   describe('DecorationAnalyzer', () => {
     let _: typeof absoluteFrom;
 
-    beforeEach(() => { _ = absoluteFrom; });
+    beforeEach(() => {
+      _ = absoluteFrom;
+    });
 
     describe('analyzeProgram()', () => {
       let logs: string[];
@@ -40,17 +42,18 @@ runInEachFileSystem(() => {
       let result: DecorationAnalyses;
 
       // Helpers
-      const createTestHandler = () => {
+      const createTestHandler = (options: {analyzeError: boolean, resolveError: boolean}) => {
         const handler = jasmine.createSpyObj<DecoratorHandlerWithResolve>('TestDecoratorHandler', [
           'detect',
           'analyze',
+          'register',
           'resolve',
           'compile',
         ]);
         // Only detect the Component and Directive decorators
         handler.detect.and.callFake(
-            (node: ts.Declaration, decorators: Decorator[] | null): DetectResult<any>|
-                undefined => {
+            (node: ts.Declaration, decorators: Decorator[]|null): DetectResult<unknown>|
+            undefined => {
               const className = (node as any).name.text;
               if (decorators === null) {
                 logs.push(`detect: ${className} (no decorators)`);
@@ -67,6 +70,7 @@ runInEachFileSystem(() => {
               } else {
                 return {
                   metadata,
+                  decorator: metadata,
                   trigger: metadata.node,
                 };
               }
@@ -74,24 +78,35 @@ runInEachFileSystem(() => {
         // The "test" analysis is an object with the name of the decorator being analyzed
         handler.analyze.and.callFake((decl: ts.Declaration, dec: Decorator) => {
           logs.push(`analyze: ${(decl as any).name.text}@${dec.name}`);
-          return {analysis: {decoratorName: dec.name}, diagnostics: undefined};
+          return {
+            analysis: {decoratorName: dec.name},
+            diagnostics: options.analyzeError ? [makeDiagnostic(9999, decl, 'analyze diagnostic')] :
+                                                undefined
+          };
         });
         // The "test" resolution is just setting `resolved: true` on the analysis
         handler.resolve.and.callFake((decl: ts.Declaration, analysis: any) => {
           logs.push(`resolve: ${(decl as any).name.text}@${analysis.decoratorName}`);
           analysis.resolved = true;
+          return {
+            diagnostics: options.resolveError ? [makeDiagnostic(9998, decl, 'resolve diagnostic')] :
+                                                undefined
+          };
         });
         // The "test" compilation result is just the name of the decorator being compiled
         // (suffixed with `(compiled)`)
-        handler.compile.and.callFake((decl: ts.Declaration, analysis: any) => {
-          logs.push(
-              `compile: ${(decl as any).name.text}@${analysis.decoratorName} (resolved: ${analysis.resolved})`);
+        (handler.compile as any).and.callFake((decl: ts.Declaration, analysis: any) => {
+          logs.push(`compile: ${(decl as any).name.text}@${analysis.decoratorName} (resolved: ${
+              analysis.resolved})`);
           return `@${analysis.decoratorName} (compiled)`;
         });
         return handler;
       };
 
-      function setUpAnalyzer(testFiles: TestFile[]) {
+      function setUpAnalyzer(testFiles: TestFile[], options: {
+        analyzeError: boolean,
+        resolveError: boolean
+      } = {analyzeError: false, resolveError: false}) {
         logs = [];
         loadTestFiles(testFiles);
         loadFakeCore(getFileSystem());
@@ -99,15 +114,16 @@ runInEachFileSystem(() => {
         const bundle = makeTestEntryPointBundle('test-package', 'esm2015', false, rootFiles);
         program = bundle.src.program;
 
-        const reflectionHost =
-            new Esm2015ReflectionHost(new MockLogger(), false, program.getTypeChecker());
+        const reflectionHost = new Esm2015ReflectionHost(new MockLogger(), false, bundle.src);
         const referencesRegistry = new NgccReferencesRegistry(reflectionHost);
         diagnosticLogs = [];
         const analyzer = new DecorationAnalyzer(
             getFileSystem(), bundle, reflectionHost, referencesRegistry,
             (error) => diagnosticLogs.push(error));
-        testHandler = createTestHandler();
-        analyzer.handlers = [testHandler];
+        testHandler = createTestHandler(options);
+
+        // Replace the default handlers with the test handler in the original array of handlers
+        analyzer.handlers.splice(0, analyzer.handlers.length, testHandler);
         migrationLogs = [];
         const migration1 = new MockMigration('migration1', migrationLogs);
         const migration2 = new MockMigration('migration2', migrationLogs);
@@ -159,15 +175,15 @@ runInEachFileSystem(() => {
 
         it('should return an object containing a reference to the original source file', () => {
           const testFile = getSourceFileOrError(program, _('/node_modules/test-package/test.js'));
-          expect(result.get(testFile) !.sourceFile).toBe(testFile);
+          expect(result.get(testFile)!.sourceFile).toBe(testFile);
           const otherFile = getSourceFileOrError(program, _('/node_modules/test-package/other.js'));
-          expect(result.get(otherFile) !.sourceFile).toBe(otherFile);
+          expect(result.get(otherFile)!.sourceFile).toBe(otherFile);
         });
 
         it('should call detect on the decorator handlers with each class from the parsed file',
            () => {
              expect(testHandler.detect).toHaveBeenCalledTimes(5);
-             expect(testHandler.detect.calls.allArgs().map(args => args[1])).toEqual([
+             expect(testHandler.detect.calls.allArgs().map((args: any[]) => args[1])).toEqual([
                null,
                jasmine.arrayContaining([jasmine.objectContaining({name: 'Component'})]),
                jasmine.arrayContaining([jasmine.objectContaining({name: 'Directive'})]),
@@ -178,30 +194,33 @@ runInEachFileSystem(() => {
 
         it('should return an object containing the classes that were analyzed', () => {
           const file1 = getSourceFileOrError(program, _('/node_modules/test-package/test.js'));
-          const compiledFile1 = result.get(file1) !;
+          const compiledFile1 = result.get(file1)!;
           expect(compiledFile1.compiledClasses.length).toEqual(2);
           expect(compiledFile1.compiledClasses[0]).toEqual(jasmine.objectContaining({
-            name: 'MyComponent', compilation: ['@Component (compiled)'],
+            name: 'MyComponent',
+            compilation: ['@Component (compiled)'],
           } as unknown as CompiledClass));
           expect(compiledFile1.compiledClasses[1]).toEqual(jasmine.objectContaining({
-            name: 'MyDirective', compilation: ['@Directive (compiled)'],
+            name: 'MyDirective',
+            compilation: ['@Directive (compiled)'],
           } as unknown as CompiledClass));
 
           const file2 = getSourceFileOrError(program, _('/node_modules/test-package/other.js'));
-          const compiledFile2 = result.get(file2) !;
+          const compiledFile2 = result.get(file2)!;
           expect(compiledFile2.compiledClasses.length).toEqual(1);
           expect(compiledFile2.compiledClasses[0]).toEqual(jasmine.objectContaining({
-            name: 'MyOtherComponent', compilation: ['@Component (compiled)'],
+            name: 'MyOtherComponent',
+            compilation: ['@Component (compiled)'],
           } as unknown as CompiledClass));
         });
 
         it('should call `apply()` on each migration for each class', () => {
           expect(migrationLogs).toEqual([
             'migration1:MyComponent',
-            'migration2:MyComponent',
             'migration1:MyDirective',
-            'migration2:MyDirective',
             'migration1:MyOtherComponent',
+            'migration2:MyComponent',
+            'migration2:MyDirective',
             'migration2:MyOtherComponent',
           ]);
         });
@@ -270,18 +289,18 @@ runInEachFileSystem(() => {
            () => {
              const file =
                  getSourceFileOrError(program, _('/node_modules/test-package/component.js'));
-             const analysis = result.get(file) !;
+             const analysis = result.get(file)!;
              expect(analysis).toBeDefined();
              const ImportedComponent =
-                 analysis.compiledClasses.find(f => f.name === 'ImportedComponent') !;
+                 analysis.compiledClasses.find(f => f.name === 'ImportedComponent')!;
              expect(ImportedComponent).toBeDefined();
            });
 
         it('should analyze an internally defined component, which is not exported at all', () => {
           const file = getSourceFileOrError(program, _('/node_modules/test-package/entrypoint.js'));
-          const analysis = result.get(file) !;
+          const analysis = result.get(file)!;
           expect(analysis).toBeDefined();
-          const LocalComponent = analysis.compiledClasses.find(f => f.name === 'LocalComponent') !;
+          const LocalComponent = analysis.compiledClasses.find(f => f.name === 'LocalComponent')!;
           expect(LocalComponent).toBeDefined();
         });
       });
@@ -294,17 +313,31 @@ runInEachFileSystem(() => {
               contents: `
         import {Component, NgModule} from '@angular/core';
         import {ImportedComponent} from 'other/component';
+        import {NestedDependencyComponent} from 'nested/component';
 
         export class LocalComponent {}
         LocalComponent.decorators = [{type: Component}];
 
         export class MyModule {}
         MyModule.decorators = [{type: NgModule, args: [{
-                    declarations: [ImportedComponent, LocalComponent],
-                    exports: [ImportedComponent, LocalComponent],
+                    declarations: [ImportedComponent, NestedDependencyComponent, LocalComponent],
+                    exports: [ImportedComponent, NestedDependencyComponent, LocalComponent],
                 },] }];
       `
             },
+            // Do not define a `.d.ts` file to ensure that the `.js` file will be part of the TS
+            // program.
+            {
+              name: _('/node_modules/test-package/node_modules/nested/component.js'),
+              contents: `
+        import {Component} from '@angular/core';
+        export class NestedDependencyComponent {}
+        NestedDependencyComponent.decorators = [{type: Component}];
+      `,
+              isRoot: false,
+            },
+            // Do not define a `.d.ts` file to ensure that the `.js` file will be part of the TS
+            // program.
             {
               name: _('/node_modules/other/component.js'),
               contents: `
@@ -314,12 +347,6 @@ runInEachFileSystem(() => {
       `,
               isRoot: false,
             },
-            {
-              name: _('/node_modules/other/component.d.ts'),
-              contents: `
-        import {Component} from '@angular/core';
-        export class ImportedComponent {}`
-            },
           ];
 
           const analyzer = setUpAnalyzer(EXTERNAL_COMPONENT_PROGRAM);
@@ -327,7 +354,13 @@ runInEachFileSystem(() => {
         });
 
         it('should ignore classes from an externally imported file', () => {
-          const file = program.getSourceFile(_('/node_modules/other/component.js')) !;
+          const file = program.getSourceFile(_('/node_modules/other/component.js'))!;
+          expect(result.has(file)).toBe(false);
+        });
+
+        it('should ignore classes from a file imported from a nested `node_modules/`', () => {
+          const file = program.getSourceFile(
+              _('/node_modules/test-package/node_modules/nested/component.js'))!;
           expect(result.has(file)).toBe(false);
         });
       });
@@ -360,6 +393,79 @@ runInEachFileSystem(() => {
           expect(diagnosticLogs.length).toEqual(2);
           expect(diagnosticLogs[0]).toEqual(jasmine.objectContaining({code: -999999}));
           expect(diagnosticLogs[1]).toEqual(jasmine.objectContaining({code: -996666}));
+        });
+
+        it('should report analyze diagnostics to the `diagnosticHandler` callback', () => {
+          const analyzer = setUpAnalyzer(
+              [
+                {
+                  name: _('/node_modules/test-package/index.js'),
+                  contents: `
+                  import {Component, Directive, Injectable} from '@angular/core';
+                  export class MyComponent {}
+                  MyComponent.decorators = [{type: Component}];
+                `,
+                },
+              ],
+              {analyzeError: true, resolveError: true});
+          analyzer.analyzeProgram();
+          expect(diagnosticLogs.length).toEqual(1);
+          expect(diagnosticLogs[0]).toEqual(jasmine.objectContaining({code: -999999}));
+          expect(testHandler.analyze).toHaveBeenCalled();
+          expect(testHandler.register).not.toHaveBeenCalled();
+          expect(testHandler.resolve).not.toHaveBeenCalled();
+          expect(testHandler.compile).not.toHaveBeenCalled();
+        });
+
+        it('should report resolve diagnostics to the `diagnosticHandler` callback', () => {
+          const analyzer = setUpAnalyzer(
+              [
+                {
+                  name: _('/node_modules/test-package/index.js'),
+                  contents: `
+                  import {Component, Directive, Injectable} from '@angular/core';
+                  export class MyComponent {}
+                  MyComponent.decorators = [{type: Component}];
+                `,
+                },
+              ],
+              {analyzeError: false, resolveError: true});
+          analyzer.analyzeProgram();
+          expect(diagnosticLogs.length).toEqual(1);
+          expect(diagnosticLogs[0]).toEqual(jasmine.objectContaining({code: -999998}));
+          expect(testHandler.analyze).toHaveBeenCalled();
+          expect(testHandler.register).toHaveBeenCalled();
+          expect(testHandler.resolve).toHaveBeenCalled();
+          expect(testHandler.compile).not.toHaveBeenCalled();
+        });
+      });
+
+      describe('declaration files', () => {
+        it('should not run decorator handlers against declaration files', () => {
+          class FakeDecoratorHandler implements DecoratorHandler<{}|null, unknown, unknown> {
+            name = 'FakeDecoratorHandler';
+            precedence = HandlerPrecedence.PRIMARY;
+
+            detect(): undefined {
+              throw new Error('detect should not have been called');
+            }
+            analyze(): AnalysisOutput<unknown> {
+              throw new Error('analyze should not have been called');
+            }
+            compile(): CompileResult {
+              throw new Error('compile should not have been called');
+            }
+          }
+
+          const analyzer = setUpAnalyzer([{
+            name: _('/node_modules/test-package/index.d.ts'),
+            contents: 'export declare class SomeDirective {}',
+          }]);
+
+          // Replace the default handlers with the test handler in the original array of handlers
+          analyzer.handlers.splice(0, analyzer.handlers.length, new FakeDecoratorHandler());
+          result = analyzer.analyzeProgram();
+          expect(result.size).toBe(0);
         });
       });
     });

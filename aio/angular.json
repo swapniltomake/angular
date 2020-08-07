@@ -5,7 +5,8 @@
     "packageManager": "yarn",
     "warnings": {
       "typescriptMismatch": false
-    }
+    },
+    "analytics": false
   },
   "newProjectRoot": "projects",
   "projects": {
@@ -57,9 +58,15 @@
               }
             ],
             "styles": [
-              "src/styles.scss"
+              "src/styles/main.scss"
             ],
-            "scripts": []
+            "scripts": [],
+            "budgets": [
+              {
+                "type": "anyComponentStyle",
+                "maximumWarning": "6kb"
+              }
+            ]
           },
           "configurations": {
             "fast": {
@@ -91,6 +98,9 @@
                 }
               ],
               "serviceWorker": true
+            },
+            "ci": {
+              "progress": false
             }
           }
         },
@@ -113,7 +123,7 @@
               "browserTarget": "site:build:archive"
             },
             "ci": {
-              "progress": false
+              "browserTarget": "site:build:ci"
             }
           }
         },
@@ -148,7 +158,7 @@
               }
             ],
             "styles": [
-              "src/styles.scss"
+              "src/styles/main.scss"
             ],
             "scripts": []
           }

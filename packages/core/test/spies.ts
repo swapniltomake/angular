@@ -1,11 +1,12 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
 
+import {DomAdapter} from '@angular/common/src/dom_adapter';
 import {ElementRef} from '@angular/core';
 import {ChangeDetectorRef} from '@angular/core/src/change_detection/change_detection';
 import {SpyObject} from '@angular/core/testing/src/testing_internal';
@@ -21,5 +22,7 @@ export class SpyChangeDetectorRef extends SpyObject {
 export class SpyIterableDifferFactory extends SpyObject {}
 
 export class SpyElementRef extends SpyObject {
-  constructor() { super(ElementRef); }
+  constructor() {
+    super(ElementRef);
+  }
 }

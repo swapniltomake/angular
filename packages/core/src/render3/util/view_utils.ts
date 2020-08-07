@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -10,10 +10,10 @@ import {assertDataInRange, assertDefined, assertDomNode, assertGreaterThan, asse
 import {assertTNodeForLView} from '../assert';
 import {LContainer, TYPE} from '../interfaces/container';
 import {LContext, MONKEY_PATCH_KEY_NAME} from '../interfaces/context';
-import {TNode} from '../interfaces/node';
-import {RNode} from '../interfaces/renderer';
+import {TConstants, TNode} from '../interfaces/node';
+import {isProceduralRenderer, RNode} from '../interfaces/renderer';
 import {isLContainer, isLView} from '../interfaces/type_checks';
-import {FLAGS, HEADER_OFFSET, HOST, LView, LViewFlags, PARENT, PREORDER_HOOK_FLAGS, TData, TVIEW} from '../interfaces/view';
+import {FLAGS, HEADER_OFFSET, HOST, LView, LViewFlags, PARENT, PREORDER_HOOK_FLAGS, RENDERER, TData, TRANSPLANTED_VIEWS_TO_REFRESH, TView} from '../interfaces/view';
 
 
 
@@ -38,7 +38,7 @@ import {FLAGS, HEADER_OFFSET, HOST, LView, LViewFlags, PARENT, PREORDER_HOOK_FLA
  * Returns `RNode`.
  * @param value wrapped value of `RNode`, `LView`, `LContainer`
  */
-export function unwrapRNode(value: RNode | LView | LContainer): RNode {
+export function unwrapRNode(value: RNode|LView|LContainer): RNode {
   while (Array.isArray(value)) {
     value = value[HOST] as any;
   }
@@ -49,7 +49,7 @@ export function unwrapRNode(value: RNode | LView | LContainer): RNode {
  * Returns `LView` or `null` if not found.
  * @param value wrapped value of `RNode`, `LView`, `LContainer`
  */
-export function unwrapLView(value: RNode | LView | LContainer): LView|null {
+export function unwrapLView(value: RNode|LView|LContainer): LView|null {
   while (Array.isArray(value)) {
     // This check is same as `isLView()` but we don't call at as we don't want to call
     // `Array.isArray()` twice and give JITer more work for inlining.
@@ -63,7 +63,7 @@ export function unwrapLView(value: RNode | LView | LContainer): LView|null {
  * Returns `LContainer` or `null` if not found.
  * @param value wrapped value of `RNode`, `LView`, `LContainer`
  */
-export function unwrapLContainer(value: RNode | LView | LContainer): LContainer|null {
+export function unwrapLContainer(value: RNode|LView|LContainer): LContainer|null {
   while (Array.isArray(value)) {
     // This check is same as `isLContainer()` but we don't call at as we don't want to call
     // `Array.isArray()` twice and give JITer more work for inlining.
@@ -93,7 +93,7 @@ export function getNativeByTNode(tNode: TNode, lView: LView): RNode {
   ngDevMode && assertTNodeForLView(tNode, lView);
   ngDevMode && assertDataInRange(lView, tNode.index);
   const node: RNode = unwrapRNode(lView[tNode.index]);
-  ngDevMode && assertDomNode(node);
+  ngDevMode && !isProceduralRenderer(lView[RENDERER]) && assertDomNode(node);
   return node;
 }
 
@@ -110,33 +110,26 @@ export function getNativeByTNodeOrNull(tNode: TNode, lView: LView): RNode|null {
   if (index !== -1) {
     ngDevMode && assertTNodeForLView(tNode, lView);
     const node: RNode|null = unwrapRNode(lView[index]);
-    ngDevMode && node !== null && assertDomNode(node);
+    ngDevMode && node !== null && !isProceduralRenderer(lView[RENDERER]) && assertDomNode(node);
     return node;
   }
   return null;
 }
 
 
-/**
- * A helper function that returns `true` if a given `TNode` has any matching directives.
- */
-export function hasDirectives(tNode: TNode): boolean {
-  return tNode.directiveEnd > tNode.directiveStart;
-}
-
-export function getTNode(index: number, view: LView): TNode {
+export function getTNode(tView: TView, index: number): TNode {
   ngDevMode && assertGreaterThan(index, -1, 'wrong index for TNode');
-  ngDevMode && assertLessThan(index, view[TVIEW].data.length, 'wrong index for TNode');
-  return view[TVIEW].data[index + HEADER_OFFSET] as TNode;
+  ngDevMode && assertLessThan(index, tView.data.length, 'wrong index for TNode');
+  return tView.data[index + HEADER_OFFSET] as TNode;
 }
 
 /** Retrieves a value from any `LView` or `TData`. */
-export function load<T>(view: LView | TData, index: number): T {
+export function load<T>(view: LView|TData, index: number): T {
   ngDevMode && assertDataInRange(view, index + HEADER_OFFSET);
   return view[index + HEADER_OFFSET];
 }
 
-export function getComponentViewByIndex(nodeIndex: number, hostView: LView): LView {
+export function getComponentLViewByIndex(nodeIndex: number, hostView: LView): LView {
   // Could be an LView or an LContainer. If LContainer, unwrap to find LView.
   ngDevMode && assertDataInRange(hostView, nodeIndex);
   const slotValue = hostView[nodeIndex];
@@ -151,7 +144,7 @@ export function getComponentViewByIndex(nodeIndex: number, hostView: LView): LVi
  */
 export function readPatchedData(target: any): LView|LContext|null {
   ngDevMode && assertDefined(target, 'Target expected');
-  return target[MONKEY_PATCH_KEY_NAME];
+  return target[MONKEY_PATCH_KEY_NAME] || null;
 }
 
 export function readPatchedLView(target: any): LView|null {
@@ -182,10 +175,35 @@ export function viewAttachedToContainer(view: LView): boolean {
   return isLContainer(view[PARENT]);
 }
 
+/** Returns a constant from `TConstants` instance. */
+export function getConstant<T>(consts: TConstants|null, index: number|null|undefined): T|null {
+  return consts === null || index == null ? null : consts[index] as unknown as T;
+}
+
 /**
  * Resets the pre-order hook flags of the view.
  * @param lView the LView on which the flags are reset
  */
 export function resetPreOrderHookFlags(lView: LView) {
   lView[PREORDER_HOOK_FLAGS] = 0;
+}
+
+/**
+ * Updates the `TRANSPLANTED_VIEWS_TO_REFRESH` counter on the `LContainer` as well as the parents
+ * whose
+ *  1. counter goes from 0 to 1, indicating that there is a new child that has a view to refresh
+ *  or
+ *  2. counter goes from 1 to 0, indicating there are no more descendant views to refresh
+ */
+export function updateTransplantedViewCount(lContainer: LContainer, amount: 1|- 1) {
+  lContainer[TRANSPLANTED_VIEWS_TO_REFRESH] += amount;
+  let viewOrContainer: LView|LContainer = lContainer;
+  let parent: LView|LContainer|null = lContainer[PARENT];
+  while (parent !== null &&
+         ((amount === 1 && viewOrContainer[TRANSPLANTED_VIEWS_TO_REFRESH] === 1) ||
+          (amount === -1 && viewOrContainer[TRANSPLANTED_VIEWS_TO_REFRESH] === 0))) {
+    parent[TRANSPLANTED_VIEWS_TO_REFRESH] += amount;
+    viewOrContainer = parent;
+    parent = parent[PARENT];
+  }
 }

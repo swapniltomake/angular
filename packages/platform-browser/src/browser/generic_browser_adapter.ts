@@ -1,12 +1,12 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {DomAdapter} from '../dom/dom_adapter';
+import {ɵDomAdapter as DomAdapter} from '@angular/common';
 
 
 
@@ -17,8 +17,11 @@ import {DomAdapter} from '../dom/dom_adapter';
  * can introduce XSS risks.
  */
 export abstract class GenericBrowserDomAdapter extends DomAdapter {
-  constructor() { super(); }
+  constructor() {
+    super();
+  }
 
-  getDistributedNodes(el: HTMLElement): Node[] { return (<any>el).getDistributedNodes(); }
-  supportsDOMEvents(): boolean { return true; }
+  supportsDOMEvents(): boolean {
+    return true;
+  }
 }

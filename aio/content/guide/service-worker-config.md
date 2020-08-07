@@ -7,16 +7,17 @@ A basic understanding of the following:
 
 <hr />
 
-The `src/ngsw-config.json` configuration file specifies which files and data URLs the Angular
-service worker should cache and how it should update the cached files and data. The
-[Angular CLI](cli) processes the configuration file during `ng build --prod`. Manually, you can process
-it with the `ngsw-config` tool:
+The `ngsw-config.json` configuration file specifies which files and data URLs the Angular service
+worker should cache and how it should update the cached files and data. The [Angular CLI](cli)
+processes the configuration file during `ng build --prod`. Manually, you can process it with the
+`ngsw-config` tool (where `<project-name>` is the name of the project being built):
 
-```sh
-ngsw-config dist src/ngsw-config.json /base/href
-```
+<code-example language="sh">
+./node_modules/.bin/ngsw-config ./dist/&lt;project-name&gt; ./ngsw-config.json [/base/href]
+</code-example>
 
-The configuration file uses the JSON format. All file paths must begin with `/`, which is the deployment directory&mdash;usually `dist` in CLI projects.
+The configuration file uses the JSON format. All file paths must begin with `/`, which corresponds
+to the deployment directory&mdash;usually `dist/<project-name>` in CLI projects.
 
 {@a glob-patterns}
 Unless otherwise noted, patterns use a limited glob format:
@@ -52,13 +53,26 @@ This field contains an array of asset groups, each of which defines a set of ass
 
 ```json
 {
-  "assetGroups": [{
-    ...
-  }, {
-    ...
-  }]
+  "assetGroups": [
+    {
+      ...
+    },
+    {
+      ...
+    }
+  ]
 }
 ```
+
+<div class="alert is-helpful">
+
+When the ServiceWorker handles a request, it checks asset groups in the order in which they appear in `ngsw-config.json`.
+The first asset group that matches the requested resource handles the request.
+
+It is recommended that you put the more specific asset groups higher in the list.
+For example, an asset group that matches `/foo.js` should appear before one that matches `*.js`.
+
+</div>
 
 Each asset group specifies both a group of resources and a policy that governs them. This policy determines when the resources are fetched and what happens when changes are detected.
 
@@ -71,9 +85,10 @@ interface AssetGroup {
   updateMode?: 'prefetch' | 'lazy';
   resources: {
     files?: string[];
-    /** @deprecated As of v6 `versionedFiles` and `files` options have the same behavior. Use `files` instead. */
-    versionedFiles?: string[];
     urls?: string[];
+  };
+  cacheQueryOptions?: {
+    ignoreSearch?: boolean;
   };
 }
 ```
@@ -104,18 +119,47 @@ Defaults to the value `installMode` is set to.
 
 ### `resources`
 
-This section describes the resources to cache, broken up into three groups.
+This section describes the resources to cache, broken up into the following groups:
 
 * `files` lists patterns that match files in the distribution directory. These can be single files or glob-like patterns that match a number of files.
-
-* `versionedFiles` has been deprecated. As of v6 `versionedFiles` and `files` options have the same behavior. Use `files` instead.
 
 * `urls` includes both URLs and URL patterns that will be matched at runtime. These resources are not fetched directly and do not have content hashes, but they will be cached according to their HTTP headers. This is most useful for CDNs such as the Google Fonts service.<br>
   _(Negative glob patterns are not supported and `?` will be matched literally; i.e. it will not match any character other than `?`.)_
 
+### `cacheQueryOptions`
+
+These options are used to modify the matching behavior of requests. They are passed to the browsers `Cache#match` function. See [MDN](https://developer.mozilla.org/en-US/docs/Web/API/Cache/match) for details. Currently, only the following options are supported:
+
+* `ignoreSearch`: Ignore query parameters. Defaults to `false`.
+
 ## `dataGroups`
 
 Unlike asset resources, data requests are not versioned along with the app. They're cached according to manually-configured policies that are more useful for situations such as API requests and other data dependencies.
+
+This field contains an array of data groups, each of which defines a set of data resources and the policy by which they are cached.
+
+```json
+{
+  "dataGroups": [
+    {
+      ...
+    },
+    {
+      ...
+    }
+  ]
+}
+```
+
+<div class="alert is-helpful">
+
+When the ServiceWorker handles a request, it checks data groups in the order in which they appear in `ngsw-config.json`.
+The first data group that matches the requested resource handles the request.
+
+It is recommended that you put the more specific data groups higher in the list.
+For example, a data group that matches `/api/foo.json` should appear before one that matches `/api/*.json`.
+
+</div>
 
 Data groups follow this Typescript interface:
 
@@ -129,6 +173,9 @@ export interface DataGroup {
     maxAge: string;
     timeout?: string;
     strategy?: 'freshness' | 'performance';
+  };
+  cacheQueryOptions?: {
+    ignoreSearch?: boolean;
   };
 }
 ```
@@ -183,6 +230,25 @@ The Angular service worker can use either of two caching strategies for data res
 * `performance`, the default, optimizes for responses that are as fast as possible. If a resource exists in the cache, the cached version is used, and no network request is made. This allows for some staleness, depending on the `maxAge`, in exchange for better performance. This is suitable for resources that don't change often; for example, user avatar images.
 
 * `freshness` optimizes for currency of data, preferentially fetching requested data from the network. Only if the network times out, according to `timeout`, does the request fall back to the cache. This is useful for resources that change frequently; for example, account balances.
+
+
+<div class="alert is-helpful">
+
+You can also emulate a third strategy, [staleWhileRevalidate](https://developers.google.com/web/fundamentals/instant-and-offline/offline-cookbook/#stale-while-revalidate), which returns cached data (if available), but also fetches fresh data from the network in the background for next time.
+To use this strategy set `strategy` to `freshness` and `timeout` to `0u` in `cacheConfig`.
+
+This will essentially do the following:
+
+1. Try to fetch from the network first.
+2. If the network request does not complete after 0ms (i.e. immediately), fall back to the cache (ignoring cache age).
+3. Once the network request completes, update the cache for future requests.
+4. If the resource does not exist in the cache, wait for the network request anyway.
+
+</div>
+
+### `cacheQueryOptions`
+
+See [assetGroups](#assetgroups) for details.
 
 ## `navigationUrls`
 

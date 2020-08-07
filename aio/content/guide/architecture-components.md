@@ -1,7 +1,7 @@
-# Introduction to components
+# Introduction to components and templates
 
-A *component* controls a patch of screen called a *view*.
-For example, individual components define and control each of the following views from the [Tutorial](tutorial):
+A *component* controls a patch of screen called a [*view*](guide/glossary#view "Definition of view").
+For example, individual components define and control each of the following views from the [Tour of Heroes tutorial](tutorial):
 
 * The app root with the navigation links.
 * The list of heroes.
@@ -35,7 +35,7 @@ Here's an example of basic metadata for `HeroListComponent`.
 
 This example shows some of the most useful `@Component` configuration options:
 
-* `selector`: A CSS selector that tells Angular to create and insert an instance of this component wherever it finds the corresponding tag in template HTML. For example, if an app's  HTML contains `<app-hero-list></app-hero-list>`, then
+* `selector`: A CSS selector that tells Angular to create and insert an instance of this component wherever it finds the corresponding tag in template HTML. For example, if an app's HTML contains `<app-hero-list></app-hero-list>`, then
 Angular inserts an instance of the `HeroListComponent` view between those tags.
 
 * `templateUrl`: The module-relative address of this component's HTML template. Alternatively, you can provide the HTML template inline, as the value of the `template` property. This template defines the component's *host view*.
@@ -51,9 +51,9 @@ You define a component's view with its companion template. A template is a form 
 
 Views are typically arranged hierarchically, allowing you to modify or show and hide entire UI sections or pages as a unit. The template immediately associated with a component defines that component's *host view*. The component can also define a *view hierarchy*, which contains *embedded views*, hosted by other components.
 
-<figure>
-<img src="generated/images/guide/architecture/component-tree.png" alt="Component tree" class="left">
-</figure>
+<div class="lightbox">
+  <img src="generated/images/guide/architecture/component-tree.png" alt="Component tree" class="left">
+</div>
 
 A view hierarchy can include views from components in the same NgModule, but it also can (and often does) include views from components that are defined in different NgModules.
 
@@ -81,9 +81,9 @@ Angular supports *two-way data binding*, a mechanism for coordinating the parts 
 
 The following diagram shows the four forms of data binding markup. Each form has a direction: to the DOM, from the DOM, or both.
 
-<figure>
-<img src="generated/images/guide/architecture/databinding.png" alt="Data Binding" class="left">
-</figure>
+<div class="lightbox">
+  <img src="generated/images/guide/architecture/databinding.png" alt="Data Binding" class="left">
+</div>
 
 This example from the `HeroListComponent` template uses three of these forms.
 
@@ -92,7 +92,7 @@ This example from the `HeroListComponent` template uses three of these forms.
 * The `{{hero.name}}` [*interpolation*](guide/displaying-data#interpolation)
 displays the component's `hero.name` property value within the `<li>` element.
 
-* The `[hero]` [*property binding*](guide/template-syntax#property-binding) passes the value of
+* The `[hero]` [*property binding*](guide/property-binding) passes the value of
 `selectedHero` from the parent `HeroListComponent` to the `hero` property of the child `HeroDetailComponent`.
 
 * The `(click)` [*event binding*](guide/user-input#binding-to-user-input-events) calls the component's `selectHero` method when the user clicks a hero's name.
@@ -110,23 +110,23 @@ as with event binding.
 Angular processes *all* data bindings once for each JavaScript event cycle,
 from the root of the application component tree through all child components.
 
-<figure>
+<div class="lightbox">
   <img src="generated/images/guide/architecture/component-databinding.png" alt="Data Binding" class="left">
-</figure>
+</div>
 
 Data binding plays an important role in communication between a template and its component, and is also important for communication between parent and child components.
 
-<figure>
+<div class="lightbox">
   <img src="generated/images/guide/architecture/parent-child-binding.png" alt="Parent/Child binding" class="left">
-</figure>
+</div>
 
 ### Pipes
 
 Angular pipes let you declare display-value transformations in your template HTML. A class with the `@Pipe` decorator defines a function that transforms input values to output values for display in a view.
 
-Angular defines various pipes, such as the [date](https://angular.io/api/common/DatePipe) pipe and [currency](https://angular.io/api/common/CurrencyPipe) pipe; for a complete list, see the [Pipes API list](https://angular.io/api?type=pipe). You can also define new pipes.
+Angular defines various pipes, such as the [date](api/common/DatePipe) pipe and [currency](api/common/CurrencyPipe) pipe; for a complete list, see the [Pipes API list](api?type=pipe). You can also define new pipes.
 
-To specify a value transformation in an HTML template, use the [pipe operator (|)](https://angular.io/guide/template-syntax#pipe).
+To specify a value transformation in an HTML template, use the [pipe operator (|)](guide/template-expression-operators#pipe).
 
 `{{interpolated_value | pipe_name}}`
 
@@ -179,9 +179,9 @@ The `ngModel` directive, which implements two-way data binding, is an example of
 <code-example path="architecture/src/app/hero-detail.component.html" header="src/app/hero-detail.component.html (ngModel)" region="ngModel"></code-example>
 
 Angular has more pre-defined directives that either alter the layout structure
-(for example, [ngSwitch](guide/template-syntax#ngSwitch))
+(for example, [ngSwitch](guide/built-in-directives#ngSwitch))
 or modify aspects of DOM elements and components
-(for example, [ngStyle](guide/template-syntax#ngStyle) and [ngClass](guide/template-syntax#ngClass)).
+(for example, [ngStyle](guide/built-in-directives#ngStyle) and [ngClass](guide/built-in-directives#ngClass)).
 
 <div class="alert is-helpful">
 

@@ -1,17 +1,19 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
 import * as ts from 'typescript';
+
 import {absoluteFrom} from '../../file_system';
 import {TestFile} from '../../file_system/testing';
 import {Reference} from '../../imports';
+import {DependencyTracker} from '../../incremental/api';
 import {TypeScriptReflectionHost} from '../../reflection';
 import {getDeclaration, makeProgram} from '../../testing';
-import {DependencyTracker, ForeignFunctionResolver, PartialEvaluator} from '../src/interface';
+import {ForeignFunctionResolver, PartialEvaluator} from '../src/interface';
 import {ResolvedValue} from '../src/result';
 
 export function makeExpression(code: string, expr: string, supportingFiles: TestFile[] = []): {
@@ -29,7 +31,7 @@ export function makeExpression(code: string, expr: string, supportingFiles: Test
   const decl =
       getDeclaration(program, absoluteFrom('/entry.ts'), 'target$', ts.isVariableDeclaration);
   return {
-    expression: decl.initializer !,
+    expression: decl.initializer!,
     host,
     options,
     checker,
@@ -40,7 +42,7 @@ export function makeExpression(code: string, expr: string, supportingFiles: Test
 export function makeEvaluator(
     checker: ts.TypeChecker, tracker?: DependencyTracker): PartialEvaluator {
   const reflectionHost = new TypeScriptReflectionHost(checker);
-  return new PartialEvaluator(reflectionHost, checker, tracker);
+  return new PartialEvaluator(reflectionHost, checker, tracker !== undefined ? tracker : null);
 }
 
 export function evaluate<T extends ResolvedValue>(

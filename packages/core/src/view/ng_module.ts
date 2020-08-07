@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -10,7 +10,7 @@ import {resolveForwardRef} from '../di/forward_ref';
 import {Injector} from '../di/injector';
 import {INJECTOR, setCurrentInjector} from '../di/injector_compatibility';
 import {getInjectableDef, ɵɵInjectableDef} from '../di/interface/defs';
-import {APP_ROOT} from '../di/scope';
+import {INJECTOR_SCOPE} from '../di/scope';
 import {NgModuleRef} from '../linker/ng_module_factory';
 import {newArray} from '../util/array_utils';
 import {stringify} from '../util/stringify';
@@ -18,15 +18,14 @@ import {stringify} from '../util/stringify';
 import {DepDef, DepFlags, NgModuleData, NgModuleDefinition, NgModuleProviderDef, NodeFlags} from './types';
 import {splitDepsDsl, tokenKey} from './util';
 
-const UNDEFINED_VALUE = new Object();
+const UNDEFINED_VALUE = {};
 
 const InjectorRefTokenKey = tokenKey(Injector);
 const INJECTORRefTokenKey = tokenKey(INJECTOR);
 const NgModuleRefTokenKey = tokenKey(NgModuleRef);
 
 export function moduleProvideDef(
-    flags: NodeFlags, token: any, value: any,
-    deps: ([DepFlags, any] | any)[]): NgModuleProviderDef {
+    flags: NodeFlags, token: any, value: any, deps: ([DepFlags, any]|any)[]): NgModuleProviderDef {
   // Need to resolve forwardRefs as e.g. for `useValue` we
   // lowered the expression and then stopped evaluating it,
   // i.e. also didn't unwrap it.
@@ -35,18 +34,21 @@ export function moduleProvideDef(
   return {
     // will bet set by the module definition
     index: -1,
-    deps: depDefs, flags, token, value
+    deps: depDefs,
+    flags,
+    token,
+    value
   };
 }
 
 export function moduleDef(providers: NgModuleProviderDef[]): NgModuleDefinition {
   const providersByKey: {[key: string]: NgModuleProviderDef} = {};
   const modules = [];
-  let isRoot: boolean = false;
+  let scope: 'root'|'platform'|null = null;
   for (let i = 0; i < providers.length; i++) {
     const provider = providers[i];
-    if (provider.token === APP_ROOT && provider.value === true) {
-      isRoot = true;
+    if (provider.token === INJECTOR_SCOPE) {
+      scope = provider.value;
     }
     if (provider.flags & NodeFlags.TypeNgModule) {
       modules.push(provider.token);
@@ -60,7 +62,7 @@ export function moduleDef(providers: NgModuleProviderDef[]): NgModuleDefinition 
     providersByKey,
     providers,
     modules,
-    isRoot,
+    scope: scope,
   };
 }
 
@@ -113,7 +115,8 @@ export function resolveNgModuleDep(
       data._def.providers[index] = data._def.providersByKey[depDef.tokenKey] = {
         flags: NodeFlags.TypeFactoryProvider | NodeFlags.LazyProvider,
         value: injectableDef.factory,
-        deps: [], index,
+        deps: [],
+        index,
         token: depDef.token,
       };
       data._providers[index] = UNDEFINED_VALUE;
@@ -134,8 +137,10 @@ function moduleTransitivelyPresent(ngModule: NgModuleData, scope: any): boolean 
 }
 
 function targetsModule(ngModule: NgModuleData, def: ɵɵInjectableDef<any>): boolean {
-  return def.providedIn != null && (moduleTransitivelyPresent(ngModule, def.providedIn) ||
-                                    def.providedIn === 'root' && ngModule._def.isRoot);
+  const providedIn = def.providedIn;
+  return providedIn != null &&
+      (providedIn === 'any' || providedIn === ngModule._def.scope ||
+       moduleTransitivelyPresent(ngModule, providedIn));
 }
 
 function _createProviderInstance(ngModule: NgModuleData, providerDef: NgModuleProviderDef): any {

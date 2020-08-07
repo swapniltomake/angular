@@ -1,28 +1,28 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {ChangeDetectionStrategy, Compiler, Component, Directive, ElementRef, EventEmitter, Injector, Input, NgModule, NgModuleRef, OnChanges, OnDestroy, Output, SimpleChanges, destroyPlatform} from '@angular/core';
-import {async, fakeAsync, tick} from '@angular/core/testing';
+import {ChangeDetectionStrategy, Compiler, Component, destroyPlatform, Directive, ElementRef, EventEmitter, Injector, Input, NgModule, NgModuleRef, OnChanges, OnDestroy, Output, SimpleChanges} from '@angular/core';
+import {fakeAsync, tick, waitForAsync} from '@angular/core/testing';
 import {BrowserModule} from '@angular/platform-browser';
 import {platformBrowserDynamic} from '@angular/platform-browser-dynamic';
-import {UpgradeComponent, UpgradeModule, downgradeComponent} from '@angular/upgrade/static';
-import * as angular from '../../../src/common/src/angular1';
+import {downgradeComponent, UpgradeComponent, UpgradeModule} from '@angular/upgrade/static';
 
+import * as angular from '../../../src/common/src/angular1';
 import {html, multiTrim, withEachNg1Version} from '../../../src/common/test/helpers/common_test_helpers';
+
 import {$apply, bootstrap} from './static_test_helpers';
 
 withEachNg1Version(() => {
   describe('downgrade ng2 component', () => {
-
     beforeEach(() => destroyPlatform());
     afterEach(() => destroyPlatform());
 
-    it('should bind properties, events', async(() => {
+    it('should bind properties, events', waitForAsync(() => {
          const ng1Module = angular.module_('ng1', []).run(($rootScope: angular.IScope) => {
            $rootScope['name'] = 'world';
            $rootScope['dataA'] = 'A';
@@ -73,8 +73,8 @@ withEachNg1Version(() => {
                }
                const actualValue = changes[prop].currentValue;
                if (actualValue != value) {
-                 throw new Error(
-                     `Expected changes record for'${prop}' to be '${value}' but was '${actualValue}'`);
+                 throw new Error(`Expected changes record for'${prop}' to be '${value}' but was '${
+                     actualValue}'`);
                }
              };
 
@@ -146,9 +146,10 @@ withEachNg1Version(() => {
          });
        }));
 
-    it('should bind properties to onpush components', async(() => {
-         const ng1Module = angular.module_('ng1', []).run(
-             ($rootScope: angular.IScope) => { $rootScope['dataB'] = 'B'; });
+    it('should bind properties to onpush components', waitForAsync(() => {
+         const ng1Module = angular.module_('ng1', []).run(($rootScope: angular.IScope) => {
+           $rootScope['dataB'] = 'B';
+         });
 
          @Component({
            selector: 'ng2',
@@ -187,7 +188,7 @@ withEachNg1Version(() => {
          });
        }));
 
-    it('should support two-way binding and event listener', async(() => {
+    it('should support two-way binding and event listener', waitForAsync(() => {
          const listenerSpy = jasmine.createSpy('$rootScope.listener');
          const ng1Module = angular.module_('ng1', []).run(($rootScope: angular.IScope) => {
            $rootScope['value'] = 'world';
@@ -239,7 +240,7 @@ withEachNg1Version(() => {
          });
        }));
 
-    it('should run change-detection on every digest (by default)', async(() => {
+    it('should run change-detection on every digest (by default)', waitForAsync(() => {
          let ng2Component: Ng2Component;
 
          @Component({selector: 'ng2', template: '{{ value1 }} | {{ value2 }}'})
@@ -247,7 +248,9 @@ withEachNg1Version(() => {
            @Input() value1 = -1;
            @Input() value2 = -1;
 
-           constructor() { ng2Component = this; }
+           constructor() {
+             ng2Component = this;
+           }
          }
 
          @NgModule({
@@ -302,7 +305,7 @@ withEachNg1Version(() => {
          });
        }));
 
-    it('should not run change-detection on every digest when opted out', async(() => {
+    it('should not run change-detection on every digest when opted out', waitForAsync(() => {
          let ng2Component: Ng2Component;
 
          @Component({selector: 'ng2', template: '{{ value1 }} | {{ value2 }}'})
@@ -310,7 +313,9 @@ withEachNg1Version(() => {
            @Input() value1 = -1;
            @Input() value2 = -1;
 
-           constructor() { ng2Component = this; }
+           constructor() {
+             ng2Component = this;
+           }
          }
 
          @NgModule({
@@ -372,7 +377,9 @@ withEachNg1Version(() => {
          @Component({selector: 'ng2', template: '{{ value }}'})
          class Ng2Component {
            value = 'foo';
-           constructor() { setTimeout(() => this.value = 'bar', 1000); }
+           constructor() {
+             setTimeout(() => this.value = 'bar', 1000);
+           }
          }
 
          @NgModule({
@@ -401,7 +408,7 @@ withEachNg1Version(() => {
          });
        }));
 
-    it('should initialize inputs in time for `ngOnChanges`', async(() => {
+    it('should initialize inputs in time for `ngOnChanges`', waitForAsync(() => {
          @Component({
            selector: 'ng2',
            template: `
@@ -413,9 +420,9 @@ withEachNg1Version(() => {
            ngOnChangesCount = 0;
            firstChangesCount = 0;
            // TODO(issue/24571): remove '!'.
-           initialValue !: string;
+           initialValue!: string;
            // TODO(issue/24571): remove '!'.
-           @Input() foo !: string;
+           @Input() foo!: string;
 
            ngOnChanges(changes: SimpleChanges) {
              this.ngOnChangesCount++;
@@ -461,9 +468,10 @@ withEachNg1Version(() => {
          });
        }));
 
-    it('should bind to ng-model', async(() => {
-         const ng1Module = angular.module_('ng1', []).run(
-             ($rootScope: angular.IScope) => { $rootScope['modelA'] = 'A'; });
+    it('should bind to ng-model', waitForAsync(() => {
+         const ng1Module = angular.module_('ng1', []).run(($rootScope: angular.IScope) => {
+           $rootScope['modelA'] = 'A';
+         });
 
          let ng2Instance: Ng2;
          @Component({selector: 'ng2', template: '<span>{{_value}}</span>'})
@@ -471,11 +479,21 @@ withEachNg1Version(() => {
            private _value: any = '';
            private _onChangeCallback: (_: any) => void = () => {};
            private _onTouchedCallback: () => void = () => {};
-           constructor() { ng2Instance = this; }
-           writeValue(value: any) { this._value = value; }
-           registerOnChange(fn: any) { this._onChangeCallback = fn; }
-           registerOnTouched(fn: any) { this._onTouchedCallback = fn; }
-           doTouch() { this._onTouchedCallback(); }
+           constructor() {
+             ng2Instance = this;
+           }
+           writeValue(value: any) {
+             this._value = value;
+           }
+           registerOnChange(fn: any) {
+             this._onChangeCallback = fn;
+           }
+           registerOnTouched(fn: any) {
+             this._onTouchedCallback = fn;
+           }
+           doTouch() {
+             this._onTouchedCallback();
+           }
            doChange(newValue: string) {
              this._value = newValue;
              this._onChangeCallback(newValue);
@@ -516,12 +534,13 @@ withEachNg1Version(() => {
          });
        }));
 
-    it('should properly run cleanup when ng1 directive is destroyed', async(() => {
-
+    it('should properly run cleanup when ng1 directive is destroyed', waitForAsync(() => {
          let destroyed = false;
          @Component({selector: 'ng2', template: 'test'})
          class Ng2Component implements OnDestroy {
-           ngOnDestroy() { destroyed = true; }
+           ngOnDestroy() {
+             destroyed = true;
+           }
          }
 
          @NgModule({
@@ -533,12 +552,13 @@ withEachNg1Version(() => {
            ngDoBootstrap() {}
          }
 
-         const ng1Module =
-             angular.module_('ng1', [])
-                 .directive(
-                     'ng1',
-                     () => { return {template: '<div ng-if="!destroyIt"><ng2></ng2></div>'}; })
-                 .directive('ng2', downgradeComponent({component: Ng2Component}));
+         const ng1Module = angular.module_('ng1', [])
+                               .directive(
+                                   'ng1',
+                                   () => {
+                                     return {template: '<div ng-if="!destroyIt"><ng2></ng2></div>'};
+                                   })
+                               .directive('ng2', downgradeComponent({component: Ng2Component}));
          const element = html('<ng1></ng1>');
          platformBrowserDynamic().bootstrapModule(Ng2Module).then((ref) => {
            const adapter = ref.injector.get(UpgradeModule) as UpgradeModule;
@@ -554,7 +574,7 @@ withEachNg1Version(() => {
          });
        }));
 
-    it('should properly run cleanup with multiple levels of nesting', async(() => {
+    it('should properly run cleanup with multiple levels of nesting', waitForAsync(() => {
          let destroyed = false;
 
          @Component({
@@ -567,7 +587,9 @@ withEachNg1Version(() => {
 
          @Component({selector: 'ng2-inner', template: 'test'})
          class Ng2InnerComponent implements OnDestroy {
-           ngOnDestroy() { destroyed = true; }
+           ngOnDestroy() {
+             destroyed = true;
+           }
          }
 
          @Directive({selector: 'ng1'})
@@ -606,8 +628,7 @@ withEachNg1Version(() => {
        }));
 
     it('should work when compiled outside the dom (by fallback to the root ng2.injector)',
-       async(() => {
-
+       waitForAsync(() => {
          @Component({selector: 'ng2', template: 'test'})
          class Ng2Component {
          }
@@ -637,7 +658,7 @@ withEachNg1Version(() => {
                              // an ng2 injector so it should use the `moduleInjector` instead.
                              const compiled = $compile('<ng2></ng2>');
                              const template = compiled($scope);
-                             $element.append !(template);
+                             $element.append!(template);
                            }
                          };
                        }
@@ -653,7 +674,7 @@ withEachNg1Version(() => {
          });
        }));
 
-    it('should allow attribute selectors for downgraded components', async(() => {
+    it('should allow attribute selectors for downgraded components', waitForAsync(() => {
          @Component({selector: '[itWorks]', template: 'It works'})
          class WorksComponent {
          }
@@ -677,7 +698,7 @@ withEachNg1Version(() => {
          });
        }));
 
-    it('should allow attribute selectors for components in ng2', async(() => {
+    it('should allow attribute selectors for components in ng2', waitForAsync(() => {
          @Component({selector: '[itWorks]', template: 'It works'})
          class WorksComponent {
          }
@@ -705,7 +726,7 @@ withEachNg1Version(() => {
          });
        }));
 
-    it('should respect hierarchical dependency injection for ng2', async(() => {
+    it('should respect hierarchical dependency injection for ng2', waitForAsync(() => {
          @Component({selector: 'parent', template: 'parent(<ng-content></ng-content>)'})
          class ParentComponent {
          }
@@ -736,7 +757,7 @@ withEachNg1Version(() => {
          });
        }));
 
-    it('should be compiled synchronously, if possible', async(() => {
+    it('should be compiled synchronously, if possible', waitForAsync(() => {
          @Component({selector: 'ng2A', template: '<ng-content></ng-content>'})
          class Ng2ComponentA {
          }
@@ -765,12 +786,14 @@ withEachNg1Version(() => {
          });
        }));
 
-    it('should work with ng2 lazy loaded components', async(() => {
+    it('should work with ng2 lazy loaded components', waitForAsync(() => {
          let componentInjector: Injector;
 
          @Component({selector: 'ng2', template: ''})
          class Ng2Component {
-           constructor(injector: Injector) { componentInjector = injector; }
+           constructor(injector: Injector) {
+             componentInjector = injector;
+           }
          }
 
          @NgModule({
@@ -806,15 +829,14 @@ withEachNg1Version(() => {
            const modFactory = compiler.compileModuleSync(LazyLoadedModule);
            const childMod = modFactory.create(modInjector);
            const cmpFactory =
-               childMod.componentFactoryResolver.resolveComponentFactory(LazyLoadedComponent) !;
+               childMod.componentFactoryResolver.resolveComponentFactory(LazyLoadedComponent)!;
            const lazyCmp = cmpFactory.create(componentInjector);
 
            expect(lazyCmp.instance.module.injector === childMod.injector).toBe(true);
          });
-
        }));
 
-    it('should throw if `downgradedModule` is specified', async(() => {
+    it('should throw if `downgradedModule` is specified', waitForAsync(() => {
          @Component({selector: 'ng2', template: ''})
          class Ng2Component {
          }
@@ -836,7 +858,9 @@ withEachNg1Version(() => {
 
          bootstrap(platformBrowserDynamic(), Ng2Module, element, ng1Module)
              .then(
-                 () => { throw new Error('Expected bootstraping to fail.'); },
+                 () => {
+                   throw new Error('Expected bootstraping to fail.');
+                 },
                  err =>
                      expect(err.message)
                          .toBe(

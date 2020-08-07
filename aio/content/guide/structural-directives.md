@@ -1,4 +1,4 @@
-# Structural Directives
+# Structural directives
 
 <style>
   h4 {font-size: 17px !important; text-transform: none !important;}
@@ -39,14 +39,14 @@ No brackets. No parentheses. Just `*ngIf` set to a string.
 
 You'll learn in this guide that the [asterisk (*) is a convenience notation](guide/structural-directives#asterisk)
 and the string is a [_microsyntax_](guide/structural-directives#microsyntax) rather than the usual
-[template expression](guide/template-syntax#template-expressions).
+[template expression](guide/interpolation#template-expressions).
 Angular desugars this notation into a marked-up `<ng-template>` that surrounds the
-host element and its descendents.
+host element and its descendants.
 Each structural directive does something different with that template.
 
-Three of the common, built-in structural directives&mdash;[NgIf](guide/template-syntax#ngIf),
-[NgFor](guide/template-syntax#ngFor), and [NgSwitch...](guide/template-syntax#ngSwitch)&mdash;are
-described in the [_Template Syntax_](guide/template-syntax) guide and seen in samples throughout the Angular documentation.
+Three of the common, built-in structural directives&mdash;[NgIf](guide/built-in-directives#ngIf),
+[NgFor](guide/built-in-directives#ngFor), and [NgSwitch...](guide/built-in-directives#ngSwitch)&mdash;are
+described in the [Built-in directives](guide/built-in-directives) guide and seen in samples throughout the Angular documentation.
 Here's an example of them in a template:
 
 
@@ -96,7 +96,7 @@ Technically it's a directive with a template.
 
 An [*attribute* directive](guide/attribute-directives) changes the appearance or behavior
 of an element, component, or another directive.
-For example, the built-in [`NgStyle`](guide/template-syntax#ngStyle) directive
+For example, the built-in [`NgStyle`](guide/built-in-directives#ngStyle) directive
 changes several element styles at the same time.
 
 You can apply many _attribute_ directives to one host element.
@@ -125,9 +125,9 @@ The `ngIf` directive doesn't hide elements with CSS. It adds and removes them ph
 Confirm that fact using browser developer tools to inspect the DOM.
 
 
-<figure>
+<div class="lightbox">
   <img src='generated/images/guide/structural-directives/element-not-in-dom.png' alt="ngIf=false element not in DOM">
-</figure>
+</div>
 
 
 
@@ -151,9 +151,9 @@ A directive could hide the unwanted paragraph instead by setting its `display` s
 While invisible, the element remains in the DOM.
 
 
-<figure>
+<div class="lightbox">
   <img src='generated/images/guide/structural-directives/element-display-in-dom.png' alt="hidden element still in DOM">
-</figure>
+</div>
 
 
 
@@ -211,9 +211,9 @@ Internally, Angular translates the `*ngIf` _attribute_ into a `<ng-template>` _e
 The first form is not actually rendered, only the finished product ends up in the DOM.
 
 
-<figure>
+<div class="lightbox">
   <img src='generated/images/guide/structural-directives/hero-div-in-dom.png' alt="hero div in DOM">
-</figure>
+</div>
 
 
 
@@ -251,7 +251,7 @@ You enable these features in the string assigned to `ngFor`, which you write in 
 
 Everything _outside_ the `ngFor` string stays with the host element
 (the `<div>`) as it moves inside the `<ng-template>`.
-In this example, the `[ngClass]="odd"` stays on the `<div>`.
+In this example, the `[class.odd]="odd"` stays on the `<div>`.
 
 
 </div>
@@ -297,7 +297,7 @@ describes additional `NgFor` directive properties and context properties.
 
 These microsyntax mechanisms are also available to you when you write your own structural directives.
 For example, microsyntax in Angular allows you to write `<div *ngFor="let item of items">{{item}}</div>`
-instead of `<ng-template ngFor [ngForOf]="items"><div>{{item}}</div></ng-template`.
+instead of `<ng-template ngFor let-item [ngForOf]="items"><div>{{item}}</div></ng-template>`.
 The following sections provide detailed information on constraints, grammar,
 and translation of microsyntax.
 
@@ -440,7 +440,7 @@ There are several such variables in this example: `hero`, `i`, and `odd`.
 All are preceded by the keyword `let`.
 
 A _template input variable_ is **_not_** the same as a
-[template _reference_ variable](guide/template-syntax#ref-vars),
+[template _reference_ variable](guide/template-reference-variables),
 neither _semantically_ nor _syntactically_.
 
 You declare a template _input_ variable using the `let` keyword (`let hero`).
@@ -559,9 +559,9 @@ That's the fate of the middle "Hip!" in the phrase "Hip! Hip! Hooray!".
 Angular erases the middle "Hip!", leaving the cheer a bit less enthusiastic.
 
 
-<figure>
+<div class="lightbox">
   <img src='generated/images/guide/structural-directives/template-rendering.png' alt="template tag rendering">
-</figure>
+</div>
 
 
 
@@ -617,9 +617,9 @@ You also have a CSS style rule that happens to apply to a `<span>` within a `<p>
 The constructed paragraph renders strangely.
 
 
-<figure>
+<div class="lightbox">
   <img src='generated/images/guide/structural-directives/bad-paragraph.png' alt="spanned paragraph with bad style">
-</figure>
+</div>
 
 
 
@@ -639,9 +639,9 @@ When you try this,
 the drop down is empty.
 
 
-<figure>
+<div class="lightbox">
   <img src='generated/images/guide/structural-directives/bad-select.png' alt="spanned options don't work">
-</figure>
+</div>
 
 
 
@@ -662,9 +662,9 @@ Here's the conditional paragraph again, this time using `<ng-container>`.
 It renders properly.
 
 
-<figure>
+<div class="lightbox">
   <img src='generated/images/guide/structural-directives/good-paragraph.png' alt="ngcontainer paragraph with proper style">
-</figure>
+</div>
 
 
 
@@ -678,9 +678,9 @@ Now conditionally exclude a _select_ `<option>` with `<ng-container>`.
 The drop down works properly.
 
 
-<figure>
+<div class="lightbox">
   <img src='generated/images/guide/structural-directives/select-ngcontainer-anim.gif' alt="ngcontainer options work properly">
-</figure>
+</div>
 
 <div class="alert is-helpful">
 
@@ -786,7 +786,7 @@ That means the directive needs an `appUnless` property, decorated with `@Input`
 
 
 
-Read about `@Input` in the [_Template Syntax_](guide/template-syntax#inputs-outputs) guide.
+Read about `@Input` in the [`@Input()` and `@Output()` properties](guide/inputs-outputs) guide.
 
 
 </div>
@@ -828,9 +828,94 @@ When the `condition` is falsy, the top (A) paragraph appears and the bottom (B) 
 When the `condition` is truthy, the top (A) paragraph is removed and the bottom (B) paragraph appears.
 
 
-<figure>
+<div class="lightbox">
   <img src='generated/images/guide/structural-directives/unless-anim.gif' alt="UnlessDirective in action">
-</figure>
+</div>
+
+{@a directive-type-checks}
+
+## Improving template type checking for custom directives
+
+You can improve template type checking for custom directives by adding template guard properties to your directive definition.
+These properties help the Angular template type checker find mistakes in the template at compile time, which can avoid runtime errors those mistakes can cause.
+
+Use the type-guard properties to inform the template type checker of an expected type, thus improving compile-time type-checking for that template.
+
+* A property `ngTemplateGuard_(someInputProperty)` lets you specify a more accurate type for an input expression within the template.
+* The `ngTemplateContextGuard` static property declares the type of the template context.
+
+This section provides example of both kinds of type-guard property.
+
+<div class="alert is-helpful">
+
+   For more information, see [Template type checking guide](guide/template-typecheck "Template type-checking guide").
+
+</div>
+
+{@a narrowing-input-types}
+
+### Make in-template type requirements more specific with template guards
+
+A structural directive in a template controls whether that template is rendered at run time, based on its input expression.
+To help the compiler catch template type errors, you should specify as closely as possible the required type of a directive's input expression when it occurs inside the template.
+
+A type guard function *narrows* the expected type of an input expression to a subset of types that might be passed to the directive within the template at run time.
+You can provide such a function to help the type-checker infer the proper type for the expression at compile time.
+
+For example, the `NgIf` implementation uses type-narrowing to ensure that the
+template is only instantiated if the input expression to `*ngIf` is truthy.
+To provide the specific type requirement, the `NgIf` directive defines a [static property `ngTemplateGuard_ngIf: 'binding'`](api/common/NgIf#static-properties).
+The `binding` value is a special case for a common kind of type-narrowing where the input expression is evaluated in order to satisfy the type requirement.
+
+To provide a more specific type for an input expression to a directive within the template, add a `ngTemplateGuard_xx` property to the directive, where the suffix to the static property name is the `@Input` field name.
+The value of the property can be either a general type-narrowing function based on its return type, or the string `"binding"` as in the case of `NgIf`.
+
+For example, consider the following structural directive that takes the result of a template expression as an input.
+
+<code-example language="ts" header="IfLoadedDirective">
+export type Loaded<T> = { type: 'loaded', data: T };
+export type Loading = { type: 'loading' };
+export type LoadingState<T> = Loaded<T> | Loading;
+export class IfLoadedDirective<T> {
+    @Input('ifLoaded') set state(state: LoadingState<T>) {}
+    static ngTemplateGuard_state<T>(dir: IfLoadedDirective<T>, expr: LoadingState<T>): expr is Loaded<T> { return true; };
+}
+
+export interface Person {
+  name: string;
+}
+
+@Component({
+  template: `&lt;div *ifLoaded="state">{{ state.data }}&lt;/div>`,
+})
+export class AppComponent {
+  state: LoadingState<Person>;
+}
+</code-example>
+
+In this example, the `LoadingState<T>` type permits either of two states, `Loaded<T>` or `Loading`. The expression used as the directive’s `state` input is of the umbrella type `LoadingState`, as it’s unknown what the loading state is at that point.
+
+The `IfLoadedDirective` definition declares the static field `ngTemplateGuard_state`, which expresses the narrowing behavior.
+Within the `AppComponent` template, the `*ifLoaded` structural directive should render this template only when `state` is actually `Loaded<Person>`.
+The type guard allows the type checker to infer that the acceptable type of `state` within the template is a `Loaded<T>`, and further infer that `T` must be an instance of `Person`.
+
+{@a narrowing-context-type}
+
+### Typing the directive's context
+
+If your structural directive provides a context to the instantiated template, you can properly type it inside the template by providing a static `ngTemplateContextGuard` function.
+The following snippet shows an example of such a function.
+
+<code-example language="ts" header="myDirective.ts">
+@Directive({…})
+export class ExampleDirective {
+    // Make sure the template checker knows the type of the context with which the
+    // template of this directive will be rendered
+    static ngTemplateContextGuard(dir: ExampleDirective, ctx: unknown): ctx is ExampleContext { return true; };
+
+    // …
+}
+</code-example>
 
 
 
@@ -879,7 +964,7 @@ Here is the source from the `src/app/` folder.
 
 
 
-You learned
+You learned:
 
 * that structural directives manipulate HTML layout.
 * to use [`<ng-container>`](guide/structural-directives#ngcontainer) as a grouping element when there is no suitable host element.

@@ -1,4 +1,4 @@
-# User Input
+# User input
 
 User actions such as clicking a link, pushing a button, and entering
 text raise DOM events.
@@ -10,13 +10,13 @@ Run the <live-example></live-example>.
 
 ## Binding to user input events
 
-You can use [Angular event bindings](guide/template-syntax#event-binding)
+You can use [Angular event bindings](guide/event-binding)
 to respond to any [DOM event](https://developer.mozilla.org/en-US/docs/Web/Events).
 Many DOM events are triggered by user input. Binding to these events provides a way to
 get input from the user.
 
 To bind to a DOM event, surround the DOM event name in parentheses and assign a quoted
-[template statement](guide/template-syntax#template-statements) to it.
+[template statement](guide/template-statements) to it.
 
 The following example shows an event binding that implements a click handler:
 
@@ -69,8 +69,8 @@ In this case, `target` refers to the [`<input>` element](https://developer.mozil
 `event.target.value` returns the current contents of that element.
 
 After each call, the `onKey()` method appends the contents of the input box value to the list
-in the component's `values` property, followed by a  separator character (|).
-The [interpolation](guide/template-syntax#interpolation)
+in the component's `values` property, followed by a separator character (|).
+The [interpolation](guide/interpolation)
 displays the accumulating input box changes from the `values` property.
 
 Suppose the user enters the letters "abc", and then backspaces to remove them one by one.
@@ -82,9 +82,9 @@ Here's what the UI displays:
 
 
 
-<figure>
+<div class="lightbox">
   <img src='generated/images/guide/user-input/keyup1-anim.gif' alt="key up 1">
-</figure>
+</div>
 
 
 
@@ -139,7 +139,7 @@ The next section shows how to use template reference variables to address this p
 
 ## Get user input from a template reference variable
 There's another way to get the user data: use Angular
-[**template reference variables**](guide/template-syntax#ref-vars).
+[**template reference variables**](guide/template-reference-variables).
 These variables provide direct access to an element from within the template.
 To declare a template reference variable, precede an identifier with a hash (or pound) character (#).
 
@@ -161,9 +161,9 @@ and the component does nothing.
 Type something in the input box, and watch the display update with each keystroke.
 
 
-<figure>
+<div class="lightbox">
   <img src='generated/images/guide/user-input/keyup-loop-back-anim.gif' alt="loop back">
-</figure>
+</div>
 
 
 
@@ -211,9 +211,9 @@ Then Angular calls the event handler only when the user presses _Enter_.
 
 Here's how it works.
 
-<figure>
+<div class="lightbox">
   <img src='generated/images/guide/user-input/keyup3-anim.gif' alt="key up 3">
-</figure>
+</div>
 
 
 
@@ -243,9 +243,9 @@ The user can add a hero by typing the hero's name in the input box and
 clicking **Add**.
 
 
-<figure>
+<div class="lightbox">
   <img src='generated/images/guide/user-input/little-tour-anim.gif' alt="Little Tour of Heroes">
-</figure>
+</div>
 
 
 
@@ -268,7 +268,7 @@ get the input box value and pass *that* to `addHero`.
 
 * **Keep template statements simple** &mdash;
 The `(blur)` event is bound to two JavaScript statements.
-The first statement calls `addHero`.  The second statement, `newHero.value=''`,
+The first statement calls `addHero`. The second statement, `newHero.value=''`,
 clears the input box after a new hero is added to the list.
 
 
@@ -298,7 +298,23 @@ Following is all the code discussed in this page.
 </code-tabs>
 
 
+Angular also supports passive event listeners. For example, you can use the following steps to make the scroll event passive.
 
+1. Create a file `zone-flags.ts` under `src` directory.
+2. Add the following line into this file.
+
+```
+(window as any)['__zone_symbol__PASSIVE_EVENTS'] = ['scroll'];
+```
+
+3. In the `src/polyfills.ts` file, before importing zone.js, import the newly created `zone-flags`.
+
+```
+import './zone-flags';
+import 'zone.js/dist/zone';  // Included with Angular CLI.
+```
+
+After those steps, if you add event listeners for the `scroll` event, the listeners will be `passive`.
 
 ## Summary
 

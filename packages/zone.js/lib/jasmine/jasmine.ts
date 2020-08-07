@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -9,19 +9,27 @@
 /// <reference types="jasmine"/>
 
 'use strict';
-((_global: any) => {
+declare let jest: any;
+Zone.__load_patch('jasmine', (global: any, Zone: ZoneType, api: _ZonePrivate) => {
   const __extends = function(d: any, b: any) {
     for (const p in b)
       if (b.hasOwnProperty(p)) d[p] = b[p];
-    function __(this: Object) { this.constructor = d; }
+    function __(this: Object) {
+      this.constructor = d;
+    }
     d.prototype = b === null ? Object.create(b) : ((__.prototype = b.prototype), new (__ as any)());
   };
   // Patch jasmine's describe/it/beforeEach/afterEach functions so test code always runs
   // in a testZone (ProxyZone). (See: angular/zone.js#91 & angular/angular#10503)
   if (!Zone) throw new Error('Missing: zone.js');
-  if (typeof jasmine == 'undefined') throw new Error('Missing: jasmine.js');
-  if ((jasmine as any)['__zone_patch__'])
-    throw new Error(`'jasmine' has already been patched with 'Zone'.`);
+  if (typeof jest !== 'undefined') {
+    // return if jasmine is a light implementation inside jest
+    // in this case, we are running inside jest not jasmine
+    return;
+  }
+  if (typeof jasmine == 'undefined' || (jasmine as any)['__zone_patch__']) {
+    return;
+  }
   (jasmine as any)['__zone_patch__'] = true;
 
   const SyncTestZoneSpec: {new (name: string): ZoneSpec} = (Zone as any)['SyncTestZoneSpec'];
@@ -38,15 +46,15 @@
   const symbol = Zone.__symbol__;
 
   // whether patch jasmine clock when in fakeAsync
-  const disablePatchingJasmineClock = _global[symbol('fakeAsyncDisablePatchingClock')] === true;
+  const disablePatchingJasmineClock = global[symbol('fakeAsyncDisablePatchingClock')] === true;
   // the original variable name fakeAsyncPatchLock is not accurate, so the name will be
   // fakeAsyncAutoFakeAsyncWhenClockPatched and if this enablePatchingJasmineClock is false, we also
   // automatically disable the auto jump into fakeAsync feature
   const enableAutoFakeAsyncWhenClockPatched = !disablePatchingJasmineClock &&
-      ((_global[symbol('fakeAsyncPatchLock')] === true) ||
-       (_global[symbol('fakeAsyncAutoFakeAsyncWhenClockPatched')] === true));
+      ((global[symbol('fakeAsyncPatchLock')] === true) ||
+       (global[symbol('fakeAsyncAutoFakeAsyncWhenClockPatched')] === true));
 
-  const ignoreUnhandledRejection = _global[symbol('ignoreUnhandledRejection')] === true;
+  const ignoreUnhandledRejection = global[symbol('ignoreUnhandledRejection')] === true;
 
   if (!ignoreUnhandledRejection) {
     const globalErrors = (jasmine as any).GlobalErrors;
@@ -120,9 +128,9 @@
           if (fakeAsyncZoneSpec) {
             const dateTime = arguments.length > 0 ? arguments[0] : new Date();
             return fakeAsyncZoneSpec.setCurrentRealTime.apply(
-                fakeAsyncZoneSpec, dateTime && typeof dateTime.getTime === 'function' ?
-                    [dateTime.getTime()] :
-                    arguments);
+                fakeAsyncZoneSpec,
+                dateTime && typeof dateTime.getTime === 'function' ? [dateTime.getTime()] :
+                                                                     arguments);
           }
           return originalMockDate.apply(this, arguments);
         };
@@ -144,6 +152,33 @@
       return clock;
     };
   }
+
+  // monkey patch createSpyObj to make properties enumerable to true
+  if (!(jasmine as any)[Zone.__symbol__('createSpyObj')]) {
+    const originalCreateSpyObj = jasmine.createSpyObj;
+    (jasmine as any)[Zone.__symbol__('createSpyObj')] = originalCreateSpyObj;
+    jasmine.createSpyObj = function() {
+      const args: any = Array.prototype.slice.call(arguments);
+      const propertyNames = args.length >= 3 ? args[2] : null;
+      let spyObj: any;
+      if (propertyNames) {
+        const defineProperty = Object.defineProperty;
+        Object.defineProperty = function(obj: any, p: string, attributes: any) {
+          return defineProperty.call(
+              this, obj, p, {...attributes, configurable: true, enumerable: true});
+        };
+        try {
+          spyObj = originalCreateSpyObj.apply(this, args);
+        } finally {
+          Object.defineProperty = defineProperty;
+        }
+      } else {
+        spyObj = originalCreateSpyObj.apply(this, args);
+      }
+      return spyObj;
+    };
+  }
+
   /**
    * Gets a function wrapping the body of a Jasmine `describe` block to execute in a
    * synchronous-only zone.
@@ -157,8 +192,8 @@
   function runInTestZone(
       testBody: Function, applyThis: any, queueRunner: QueueRunner, done?: Function) {
     const isClockInstalled = !!(jasmine as any)[symbol('clockInstalled')];
-    const testProxyZoneSpec = queueRunner.testProxyZoneSpec !;
-    const testProxyZone = queueRunner.testProxyZone !;
+    const testProxyZoneSpec = queueRunner.testProxyZoneSpec!;
+    const testProxyZone = queueRunner.testProxyZone!;
     let lastDelegate;
     if (isClockInstalled && enableAutoFakeAsyncWhenClockPatched) {
       // auto run a fakeAsync
@@ -184,9 +219,9 @@
     // Note we have to make a function with correct number of arguments, otherwise jasmine will
     // think that all functions are sync or async.
     return (testBody && (testBody.length ? function(this: QueueRunnerUserContext, done: Function) {
-              return runInTestZone(testBody, this, this.queueRunner !, done);
+              return runInTestZone(testBody, this, this.queueRunner!, done);
             } : function(this: QueueRunnerUserContext) {
-              return runInTestZone(testBody, this, this.queueRunner !);
+              return runInTestZone(testBody, this, this.queueRunner!);
             }));
   }
   interface QueueRunner {
@@ -220,13 +255,13 @@
         })(attrs.onComplete);
       }
 
-      const nativeSetTimeout = _global[Zone.__symbol__('setTimeout')];
-      const nativeClearTimeout = _global[Zone.__symbol__('clearTimeout')];
+      const nativeSetTimeout = global[Zone.__symbol__('setTimeout')];
+      const nativeClearTimeout = global[Zone.__symbol__('clearTimeout')];
       if (nativeSetTimeout) {
         // should run setTimeout inside jasmine outside of zone
         attrs.timeout = {
-          setTimeout: nativeSetTimeout ? nativeSetTimeout : _global.setTimeout,
-          clearTimeout: nativeClearTimeout ? nativeClearTimeout : _global.clearTimeout
+          setTimeout: nativeSetTimeout ? nativeSetTimeout : global.setTimeout,
+          clearTimeout: nativeClearTimeout ? nativeClearTimeout : global.clearTimeout
         };
       }
 
@@ -308,4 +343,4 @@
     };
     return ZoneQueueRunner;
   })(QueueRunner);
-})(typeof window !== 'undefined' && window || typeof self !== 'undefined' && self || global);
+});

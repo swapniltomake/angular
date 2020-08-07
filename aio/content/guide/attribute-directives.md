@@ -1,4 +1,4 @@
-# Attribute Directives
+# Attribute directives
 
 An **Attribute** directive changes the appearance or behavior of a DOM element.
 
@@ -18,12 +18,12 @@ There are three kinds of directives in Angular:
 You saw a component for the first time in the [Getting Started](start "Getting Started with Angular") tutorial.
 
 *Structural Directives* change the structure of the view.
-Two examples are [NgFor](guide/template-syntax#ngFor) and [NgIf](guide/template-syntax#ngIf).
+Two examples are [NgFor](guide/built-in-directives#ngFor) and [NgIf](guide/built-in-directives#ngIf).
 Learn about them in the [Structural Directives](guide/structural-directives) guide.
 
 *Attribute directives* are used as attributes of elements.
-The built-in [NgStyle](guide/template-syntax#ngStyle) directive in the
-[Template Syntax](guide/template-syntax) guide, for example,
+The built-in [NgStyle](guide/built-in-directives#ngStyle) directive in the
+[Built-in directives](guide/built-in-directives) guide, for example,
 can change several element styles at the same time.
 
 ## Build a simple attribute directive
@@ -142,7 +142,7 @@ Begin by adding `HostListener` to the list of imported symbols.
 
 <code-example path="attribute-directives/src/app/highlight.directive.2.ts" header="src/app/highlight.directive.ts (imports)" region="imports"></code-example>
 
-Then add two eventhandlers that respond when the mouse enters or leaves,
+Then add two event handlers that respond when the mouse enters or leaves,
 each adorned by the `HostListener` decorator.
 
 <code-example path="attribute-directives/src/app/highlight.directive.2.ts" header="src/app/highlight.directive.ts (mouse-methods)" region="mouse-methods"></code-example>
@@ -173,11 +173,11 @@ Here's the updated directive in full:
 <code-example path="attribute-directives/src/app/highlight.directive.2.ts" header="src/app/highlight.directive.ts"></code-example>
 
 Run the app and confirm that the background color appears when
-the mouse hovers over the `p` and disappears as it moves out.
+the pointer hovers over the paragraph element and disappears as the pointer moves out.
 
-<figure>
+<div class="lightbox">
   <img src="generated/images/guide/attribute-directives/highlight-directive-anim.gif" alt="Second Highlight">
-</figure>
+</div>
 
 {@a bindings}
 
@@ -247,7 +247,7 @@ You get the best of both worlds: the property name you want and the binding synt
 <code-example path="attribute-directives/src/app/app.component.html" header="src/app/app.component.html (color)" region="color"></code-example>
 
 Now that you're binding via the alias to the `highlightColor`, modify the `onMouseEnter()` method to use that property.
-If someone neglects to bind to `appHighlightColor`, highlight the host element in red:
+If someone neglects to bind to `appHighlight`, highlight the host element in red:
 
 <code-example path="attribute-directives/src/app/highlight.directive.3.ts" header="src/app/highlight.directive.ts (mouse enter)" region="mouse-enter"></code-example>
 
@@ -271,9 +271,9 @@ Revise the `AppComponent.color` so that it has no initial value.
 
 Here are the harness and directive in action.
 
-<figure>
+<div class="lightbox">
   <img src="generated/images/guide/attribute-directives/highlight-directive-v2-anim.gif" alt="Highlight v.2">
-</figure>
+</div>
 
 {@a second-property}
 
@@ -307,9 +307,9 @@ because you made it _public_ with the `@Input` decorator.
 
 Here's how the harness should work when you're done coding.
 
-<figure>
+<div class="lightbox">
   <img src="generated/images/guide/attribute-directives/highlight-directive-final-anim.gif" alt="Final Highlight">
-</figure>
+</div>
 
 ## Summary
 

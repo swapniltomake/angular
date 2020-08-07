@@ -1,4 +1,4 @@
-# Routing
+# Add in-app navigation with routing
 
 There are new requirements for the Tour of Heroes app:
 
@@ -7,13 +7,17 @@ There are new requirements for the Tour of Heroes app:
 * When users click a hero name in either view, navigate to a detail view of the selected hero.
 * When users click a *deep link* in an email, open the detail view for a particular hero.
 
+<div class="alert is-helpful">
+
+  For the sample app that this page describes, see the <live-example></live-example>.
+
+</div>
+
 When you’re done, users will be able to navigate the app like this:
 
-<figure>
-
+<div class="lightbox">
   <img src='generated/images/guide/toh/nav-diagram.png' alt="View navigations">
-
-</figure>
+</div>
 
 ## Add the `AppRoutingModule`
 
@@ -44,9 +48,9 @@ Replace it with the following:
 <code-example path="toh-pt5/src/app/app-routing.module.1.ts" header="src/app/app-routing.module.ts (updated)">
 </code-example>
 
-First, `AppRoutingModule` imports `RouterModule` and `Routes` so the app can have routing functionality. The next import, `HeroesComponent`, will give the Router somewhere to go once you  configure the routes.
+First, `AppRoutingModule` imports `RouterModule` and `Routes` so the app can have routing functionality. The next import, `HeroesComponent`, will give the Router somewhere to go once you configure the routes.
 
-Notice that the `CommonModule` references and `declarations` array are unecessary, so are no
+Notice that the `CommonModule` references and `declarations` array are unnecessary, so are no
 longer part of `AppRoutingModule`. The following sections explain the rest of the `AppRoutingModule` in more detail.
 
 
@@ -108,7 +112,7 @@ The `<router-outlet>` tells the router where to display routed views.
 <div class="alert is-helpful">
 
 The `RouterOutlet` is one of the router directives that became available to the `AppComponent`
-because `AppModule` imports `AppRoutingModule` which exported `RouterModule`.
+because `AppModule` imports `AppRoutingModule` which exported `RouterModule`. The `ng generate` command you ran at the start of this tutorial added this import because of the `--module=app` flag. If you manually created `app-routing.module.ts` or used a tool other than the CLI to do so, you'll need to import `AppRoutingModule` into `app.module.ts` and add it to the `imports` array of the `NgModule`.
 
 </div>
 
@@ -314,7 +318,7 @@ fix the dashboard hero links to navigate via the _parameterized_ dashboard route
   header="src/app/dashboard/dashboard.component.html (hero links)">
 </code-example>
 
-You're using Angular [interpolation binding](guide/template-syntax#interpolation) within the `*ngFor` repeater
+You're using Angular [interpolation binding](guide/interpolation) within the `*ngFor` repeater
 to insert the current iteration's `hero.id` into each
 [`routerLink`](#routerlink).
 
@@ -375,7 +379,7 @@ Add the following imports:
 Inject the `ActivatedRoute`, `HeroService`, and `Location` services
 into the constructor, saving their values in private fields:
 
-<code-example path="toh-pt5/src/app/hero-detail/hero-detail.component.ts" header="toh-pt5/src/app/hero-detail/hero-detail.component.ts" region="ctor">
+<code-example path="toh-pt5/src/app/hero-detail/hero-detail.component.ts" header="src/app/hero-detail/hero-detail.component.ts" region="ctor">
 </code-example>
 
 The [`ActivatedRoute`](api/router/ActivatedRoute) holds information about the route to this instance of the `HeroDetailComponent`.
@@ -468,7 +472,7 @@ from heroes list to the mini detail to the hero details and back to the heroes a
 
 ## Final code review
 
-Here are the code files discussed on this page and your app should look like this <live-example></live-example>.
+Here are the code files discussed on this page.
 
 {@a approutingmodule}
 {@a appmodule}

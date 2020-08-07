@@ -34,7 +34,7 @@ Angular supports most recent browsers. This includes the following specific vers
     </td>
 
     <td>
-      latest
+      latest and extended support release (ESR)
     </td>
   </tr>
 
@@ -53,16 +53,18 @@ Angular supports most recent browsers. This includes the following specific vers
       IE
     </td>
     <td>
-      11, 10, 9 ("compatibility view" mode not supported)
+      <div> 11, 10*, 9* ("compatibility view" mode not supported) </div>
+      <div>*deprecated in v10, see the {@link guide/deprecations#ie-9-10-and-mobile deprecations guide}.</div>
     </td>
   </tr>
  <tr>
    <tr>
     <td>
-      IE Mobile
+      IE Mobile*
     </td>
     <td>
       11
+      <div>*deprecated in v10, see the {@link guide/deprecations#ie-9-10-and-mobile deprecations guide}.</div>
     </td>
   </tr>
  <tr>
@@ -89,7 +91,7 @@ Angular supports most recent browsers. This includes the following specific vers
     </td>
 
     <td>
-      Nougat (7.0), Marshmallow (6.0), Lollipop (5.0, 5.1), KitKat (4.4)
+      X (10.0), Pie (9.0), Oreo (8.0), Nougat (7.0)
     </td>
   </tr>
 
@@ -260,30 +262,6 @@ Some features of Angular may require additional polyfills.
 
     <td>
 
-     If you use the following deprecated i18n pipes:
-     [date](api/common/DeprecatedDatePipe),
-     [currency](api/common/DeprecatedCurrencyPipe),
-     [decimal](api/common/DeprecatedDecimalPipe),
-     [percent](api/common/DeprecatedPercentPipe)
-
-    </td>
-
-    <td>
-
-      [Intl API](guide/browser-support#intl)
-
-    </td>
-
-    <td>
-      All but Chrome, Firefox, Edge, IE 11 and Safari 10
-    </td>
-
-  </tr>
-
-  <tr style="vertical-align: top">
-
-    <td>
-
        [NgClass](api/common/NgClass) on SVG elements
     </td>
 
@@ -327,7 +305,7 @@ Some features of Angular may require additional polyfills.
     <td>
 
       [Router](guide/router) when using
-      [hash-based routing](guide/router#appendix-locationstrategy-and-browser-url-styles)
+      [hash-based routing](guide/router#location-strategy)
     </td>
 
     <td>
@@ -539,7 +517,7 @@ For example:
      */
     // __Zone_disable_requestAnimationFrame = true; // disable patch requestAnimationFrame
     // __Zone_disable_on_property = true; // disable patch onProperty such as onclick
-    // __zone_symbol__BLACK_LISTED_EVENTS = ['scroll', 'mousemove']; // disable patch specified eventNames
+    // __zone_symbol__UNPATCHED_EVENTS = ['scroll', 'mousemove']; // disable patch specified eventNames
 
     /*
      * in IE/Edge developer tools, the addEventListener will also be wrapped by zone.js
@@ -548,7 +526,7 @@ For example:
     // __Zone_enable_cross_context_check = true;
   &lt;/script>
   &lt;!-- zone.js required by Angular -->
-  &lt;script src="node_modules/zone.js/dist/zone.js">&lt;/script>
+  &lt;script src="node_modules/zone.js/bundles/zone.umd.js">&lt;/script>
 
   &lt;!-- application polyfills -->
 </code-example>

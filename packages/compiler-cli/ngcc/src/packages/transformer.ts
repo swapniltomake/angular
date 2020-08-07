@@ -1,12 +1,16 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
 import * as ts from 'typescript';
+
+import {ParsedConfiguration} from '../../..';
 import {FileSystem} from '../../../src/ngtsc/file_system';
+import {Logger} from '../../../src/ngtsc/logging';
+import {TypeScriptReflectionHost} from '../../../src/ngtsc/reflection';
 import {DecorationAnalyzer} from '../analysis/decoration_analyzer';
 import {ModuleWithProvidersAnalyses, ModuleWithProvidersAnalyzer} from '../analysis/module_with_providers_analyzer';
 import {NgccReferencesRegistry} from '../analysis/ngcc_references_registry';
@@ -14,11 +18,11 @@ import {ExportInfo, PrivateDeclarationsAnalyzer} from '../analysis/private_decla
 import {SwitchMarkerAnalyses, SwitchMarkerAnalyzer} from '../analysis/switch_marker_analyzer';
 import {CompiledFile} from '../analysis/types';
 import {CommonJsReflectionHost} from '../host/commonjs_host';
+import {DelegatingReflectionHost} from '../host/delegating_host';
 import {Esm2015ReflectionHost} from '../host/esm2015_host';
 import {Esm5ReflectionHost} from '../host/esm5_host';
 import {NgccReflectionHost} from '../host/ngcc_host';
 import {UmdReflectionHost} from '../host/umd_host';
-import {Logger} from '../logging/logger';
 import {CommonJsRenderingFormatter} from '../rendering/commonjs_rendering_formatter';
 import {DtsRenderer} from '../rendering/dts_renderer';
 import {Esm5RenderingFormatter} from '../rendering/esm5_rendering_formatter';
@@ -27,7 +31,15 @@ import {Renderer} from '../rendering/renderer';
 import {RenderingFormatter} from '../rendering/rendering_formatter';
 import {UmdRenderingFormatter} from '../rendering/umd_rendering_formatter';
 import {FileToWrite} from '../rendering/utils';
+
 import {EntryPointBundle} from './entry_point_bundle';
+
+export type TransformResult = {
+  success: true; diagnostics: ts.Diagnostic[]; transformedFiles: FileToWrite[];
+}|{
+  success: false;
+  diagnostics: ts.Diagnostic[];
+};
 
 /**
  * A Package is stored in a directory on disk and that directory can contain one or more package
@@ -51,24 +63,39 @@ import {EntryPointBundle} from './entry_point_bundle';
  * - Some formats may contain multiple "modules" in a single file.
  */
 export class Transformer {
-  constructor(private fs: FileSystem, private logger: Logger) {}
+  constructor(
+      private fs: FileSystem, private logger: Logger,
+      private tsConfig: ParsedConfiguration|null = null) {}
 
   /**
    * Transform the source (and typings) files of a bundle.
    * @param bundle the bundle to transform.
    * @returns information about the files that were transformed.
    */
-  transform(bundle: EntryPointBundle): FileToWrite[] {
-    const reflectionHost = this.getHost(bundle);
+  transform(bundle: EntryPointBundle): TransformResult {
+    const ngccReflectionHost = this.getHost(bundle);
+    const tsReflectionHost = new TypeScriptReflectionHost(bundle.src.program.getTypeChecker());
+    const reflectionHost = new DelegatingReflectionHost(tsReflectionHost, ngccReflectionHost);
 
     // Parse and analyze the files.
-    const {decorationAnalyses, switchMarkerAnalyses, privateDeclarationsAnalyses,
-           moduleWithProvidersAnalyses} = this.analyzeProgram(reflectionHost, bundle);
+    const {
+      decorationAnalyses,
+      switchMarkerAnalyses,
+      privateDeclarationsAnalyses,
+      moduleWithProvidersAnalyses,
+      diagnostics
+    } = this.analyzeProgram(reflectionHost, bundle);
+
+    // Bail if the analysis produced any errors.
+    if (hasErrors(diagnostics)) {
+      return {success: false, diagnostics};
+    }
 
     // Transform the source files and source maps.
-    const srcFormatter = this.getRenderingFormatter(reflectionHost, bundle);
+    const srcFormatter = this.getRenderingFormatter(ngccReflectionHost, bundle);
 
-    const renderer = new Renderer(srcFormatter, this.fs, this.logger, bundle);
+    const renderer =
+        new Renderer(reflectionHost, srcFormatter, this.fs, this.logger, bundle, this.tsConfig);
     let renderedFiles = renderer.renderProgram(
         decorationAnalyses, switchMarkerAnalyses, privateDeclarationsAnalyses);
 
@@ -81,22 +108,19 @@ export class Transformer {
       renderedFiles = renderedFiles.concat(renderedDtsFiles);
     }
 
-    return renderedFiles;
+    return {success: true, diagnostics, transformedFiles: renderedFiles};
   }
 
   getHost(bundle: EntryPointBundle): NgccReflectionHost {
-    const typeChecker = bundle.src.program.getTypeChecker();
     switch (bundle.format) {
       case 'esm2015':
-        return new Esm2015ReflectionHost(this.logger, bundle.isCore, typeChecker, bundle.dts);
+        return new Esm2015ReflectionHost(this.logger, bundle.isCore, bundle.src, bundle.dts);
       case 'esm5':
-        return new Esm5ReflectionHost(this.logger, bundle.isCore, typeChecker, bundle.dts);
+        return new Esm5ReflectionHost(this.logger, bundle.isCore, bundle.src, bundle.dts);
       case 'umd':
-        return new UmdReflectionHost(
-            this.logger, bundle.isCore, bundle.src.program, bundle.src.host, bundle.dts);
+        return new UmdReflectionHost(this.logger, bundle.isCore, bundle.src, bundle.dts);
       case 'commonjs':
-        return new CommonJsReflectionHost(
-            this.logger, bundle.isCore, bundle.src.program, bundle.src.host, bundle.dts);
+        return new CommonJsReflectionHost(this.logger, bundle.isCore, bundle.src, bundle.dts);
       default:
         throw new Error(`Reflection host for "${bundle.format}" not yet implemented.`);
     }
@@ -124,15 +148,18 @@ export class Transformer {
     const referencesRegistry = new NgccReferencesRegistry(reflectionHost);
 
     const switchMarkerAnalyzer =
-        new SwitchMarkerAnalyzer(reflectionHost, bundle.entryPoint.package);
+        new SwitchMarkerAnalyzer(reflectionHost, bundle.entryPoint.packagePath);
     const switchMarkerAnalyses = switchMarkerAnalyzer.analyzeProgram(bundle.src.program);
 
-    const decorationAnalyzer =
-        new DecorationAnalyzer(this.fs, bundle, reflectionHost, referencesRegistry);
+    const diagnostics: ts.Diagnostic[] = [];
+    const decorationAnalyzer = new DecorationAnalyzer(
+        this.fs, bundle, reflectionHost, referencesRegistry,
+        diagnostic => diagnostics.push(diagnostic), this.tsConfig);
     const decorationAnalyses = decorationAnalyzer.analyzeProgram();
 
-    const moduleWithProvidersAnalyzer =
-        bundle.dts && new ModuleWithProvidersAnalyzer(reflectionHost, referencesRegistry);
+    const moduleWithProvidersAnalyzer = new ModuleWithProvidersAnalyzer(
+        reflectionHost, bundle.src.program.getTypeChecker(), referencesRegistry,
+        bundle.dts !== null);
     const moduleWithProvidersAnalyses = moduleWithProvidersAnalyzer &&
         moduleWithProvidersAnalyzer.analyzeProgram(bundle.src.program);
 
@@ -141,15 +168,24 @@ export class Transformer {
     const privateDeclarationsAnalyses =
         privateDeclarationsAnalyzer.analyzeProgram(bundle.src.program);
 
-    return {decorationAnalyses, switchMarkerAnalyses, privateDeclarationsAnalyses,
-            moduleWithProvidersAnalyses};
+    return {
+      decorationAnalyses,
+      switchMarkerAnalyses,
+      privateDeclarationsAnalyses,
+      moduleWithProvidersAnalyses,
+      diagnostics
+    };
   }
 }
 
+export function hasErrors(diagnostics: ts.Diagnostic[]) {
+  return diagnostics.some(d => d.category === ts.DiagnosticCategory.Error);
+}
 
 interface ProgramAnalyses {
   decorationAnalyses: Map<ts.SourceFile, CompiledFile>;
   switchMarkerAnalyses: SwitchMarkerAnalyses;
   privateDeclarationsAnalyses: ExportInfo[];
   moduleWithProvidersAnalyses: ModuleWithProvidersAnalyses|null;
+  diagnostics: ts.Diagnostic[];
 }

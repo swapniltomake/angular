@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -8,7 +8,7 @@
 
 import {Type} from '../../interface/type';
 import {isForwardRef, resolveForwardRef} from '../forward_ref';
-import {ɵɵinject} from '../injector_compatibility';
+import {ɵɵinject, ɵɵinvalidFactoryDep} from '../injector_compatibility';
 import {getInjectableDef, getInjectorDef, ɵɵdefineInjectable, ɵɵdefineInjector} from '../interface/defs';
 
 
@@ -23,6 +23,7 @@ export const angularCoreDiEnv: {[name: string]: Function} = {
   'ɵɵdefineInjector': ɵɵdefineInjector,
   'ɵɵinject': ɵɵinject,
   'ɵɵgetFactoryOf': getFactoryOf,
+  'ɵɵinvalidFactoryDep': ɵɵinvalidFactoryDep,
 };
 
 function getFactoryOf<T>(type: Type<any>): ((type?: Type<T>) => T)|null {
@@ -30,9 +31,9 @@ function getFactoryOf<T>(type: Type<any>): ((type?: Type<T>) => T)|null {
 
   if (isForwardRef(type)) {
     return (() => {
-      const factory = getFactoryOf<T>(resolveForwardRef(typeAny));
-      return factory ? factory() : null;
-    }) as any;
+             const factory = getFactoryOf<T>(resolveForwardRef(typeAny));
+             return factory ? factory() : null;
+           }) as any;
   }
 
   const def = getInjectableDef<T>(typeAny) || getInjectorDef<T>(typeAny);

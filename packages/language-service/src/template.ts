@@ -1,17 +1,18 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {getClassMembersFromDeclaration, getPipesTable, getSymbolQuery} from '@angular/compiler-cli';
 import * as ts from 'typescript';
 
-import {isAstResult} from './common';
+import {createGlobalSymbolTable} from './global_symbols';
 import * as ng from './types';
 import {TypeScriptServiceHost} from './typescript_host';
+import {getClassMembersFromDeclaration, getPipesTable, getSymbolQuery} from './typescript_symbols';
+
 
 /**
  * A base class to represent a template and which component class it is
@@ -38,7 +39,9 @@ abstract class BaseTemplate implements ng.TemplateSource {
   /**
    * Return the Angular StaticSymbol for the class that contains this template.
    */
-  get type() { return this.classSymbol; }
+  get type() {
+    return this.classSymbol;
+  }
 
   /**
    * Return a Map-like data structure that allows users to retrieve some or all
@@ -48,8 +51,10 @@ abstract class BaseTemplate implements ng.TemplateSource {
     if (!this.membersTable) {
       const typeChecker = this.program.getTypeChecker();
       const sourceFile = this.classDeclNode.getSourceFile();
-      this.membersTable =
-          getClassMembersFromDeclaration(this.program, typeChecker, sourceFile, this.classDeclNode);
+      this.membersTable = this.query.mergeSymbolTable([
+        createGlobalSymbolTable(this.query),
+        getClassMembersFromDeclaration(this.program, typeChecker, sourceFile, this.classDeclNode),
+      ]);
     }
     return this.membersTable;
   }
@@ -69,7 +74,7 @@ abstract class BaseTemplate implements ng.TemplateSource {
         // TODO: There is circular dependency here between TemplateSource and
         // TypeScriptHost. Consider refactoring the code to break this cycle.
         const ast = this.host.getTemplateAst(this);
-        const pipes = isAstResult(ast) ? ast.pipes : [];
+        const pipes = (ast && ast.pipes) || [];
         return getPipesTable(sourceFile, program, typeChecker, pipes);
       });
     }
@@ -95,7 +100,9 @@ export class InlineTemplate extends BaseTemplate {
       throw new Error(`Inline template and component class should belong to the same source file`);
     }
     this.fileName = sourceFile.fileName;
-    this.source = templateNode.text;
+    // node.text returns the TS internal representation of the normalized text,
+    // and all CR characters are stripped. node.getText() returns the raw text.
+    this.source = templateNode.getText().slice(1, -1);  // strip leading and trailing quotes
     this.span = {
       // TS string literal includes surrounding quotes in the start/end offsets.
       start: templateNode.getStart() + 1,
@@ -124,63 +131,4 @@ export class ExternalTemplate extends BaseTemplate {
       end: source.length,
     };
   }
-}
-
-/**
- * Returns a property assignment from the assignment value, or `undefined` if there is no
- * assignment.
- */
-export function getPropertyAssignmentFromValue(value: ts.Node): ts.PropertyAssignment|undefined {
-  if (!value.parent || !ts.isPropertyAssignment(value.parent)) {
-    return;
-  }
-  return value.parent;
-}
-
-/**
- * Given a decorator property assignment, return the ClassDeclaration node that corresponds to the
- * directive class the property applies to.
- * If the property assignment is not on a class decorator, no declaration is returned.
- *
- * For example,
- *
- * @Component({
- *   template: '<div></div>'
- *   ^^^^^^^^^^^^^^^^^^^^^^^---- property assignment
- * })
- * class AppComponent {}
- *           ^---- class declaration node
- *
- * @param propAsgn property assignment
- */
-export function getClassDeclFromDecoratorProp(propAsgnNode: ts.PropertyAssignment):
-    ts.ClassDeclaration|undefined {
-  if (!propAsgnNode.parent || !ts.isObjectLiteralExpression(propAsgnNode.parent)) {
-    return;
-  }
-  const objLitExprNode = propAsgnNode.parent;
-  if (!objLitExprNode.parent || !ts.isCallExpression(objLitExprNode.parent)) {
-    return;
-  }
-  const callExprNode = objLitExprNode.parent;
-  if (!callExprNode.parent || !ts.isDecorator(callExprNode.parent)) {
-    return;
-  }
-  const decorator = callExprNode.parent;
-  if (!decorator.parent || !ts.isClassDeclaration(decorator.parent)) {
-    return;
-  }
-  const classDeclNode = decorator.parent;
-  return classDeclNode;
-}
-
-/**
- * Determines if a property assignment is on a class decorator.
- * See `getClassDeclFromDecoratorProperty`, which gets the class the decorator is applied to, for
- * more details.
- *
- * @param prop property assignment
- */
-export function isClassDecoratorProperty(propAsgn: ts.PropertyAssignment): boolean {
-  return !!getClassDeclFromDecoratorProp(propAsgn);
 }

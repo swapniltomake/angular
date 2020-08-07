@@ -1,9 +1,16 @@
-# Services
+# Add services
 
 The Tour of Heroes `HeroesComponent` is currently getting and displaying fake data.
 
 After the refactoring in this tutorial, `HeroesComponent` will be lean and focused on supporting the view.
 It will also be easier to unit-test with a mock service.
+
+<div class="alert is-helpful">
+
+  For the sample app that this page describes, see the <live-example></live-example>.
+
+</div>
+
 
 ## Why services
 
@@ -11,15 +18,16 @@ Components shouldn't fetch or save data directly and they certainly shouldn't kn
 They should focus on presenting data and delegate data access to a service.
 
 In this tutorial, you'll create a `HeroService` that all application classes can use to get heroes.
-Instead of creating that service with `new`,
+Instead of creating that service with the [`new` keyword](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/new),
 you'll rely on Angular [*dependency injection*](guide/dependency-injection)
 to inject it into the `HeroesComponent` constructor.
 
 Services are a great way to share information among classes that _don't know each other_.
-You'll create a `MessageService` and inject it in two places:
+You'll create a `MessageService` and inject it in two places.
 
-1. in `HeroService` which uses the service to send a message
-2. in `MessagesComponent` which displays that message
+1. Inject in HeroService, which uses the service to send a message.
+2. Inject in MessagesComponent, which displays that message, and also displays the ID
+when the user clicks a hero.
 
 
 ## Create the `HeroService`
@@ -95,7 +103,7 @@ The `HeroService` is now ready to plug into the `HeroesComponent`.
 
 <div class="alert is-important">
 
-This is an interim code sample that will allow you to provide and use the `HeroService`.  At this point, the code will differ from the `HeroService` in the ["final code review"](#final-code-review).
+This is an interim code sample that will allow you to provide and use the `HeroService`. At this point, the code will differ from the `HeroService` in the ["final code review"](#final-code-review).
 
 </div>
 
@@ -121,7 +129,7 @@ Replace the definition of the `heroes` property with a simple declaration.
 
 Add a private `heroService` parameter of type `HeroService` to the constructor.
 
-<code-example path="toh-pt4/src/app/heroes/heroes.component.ts" header="src/app/heroes/heroes.component.ts" region="ctor">
+<code-example path="toh-pt4/src/app/heroes/heroes.component.1.ts" header="src/app/heroes/heroes.component.ts" region="ctor">
 </code-example>
 
 The parameter simultaneously defines a private `heroService` property and identifies it as a `HeroService` injection site.
@@ -131,7 +139,7 @@ sets the `heroService` parameter to the singleton instance of `HeroService`.
 
 ### Add `getHeroes()`
 
-Create a function to retrieve the heroes from the service.
+Create a method to retrieve the heroes from the service.
 
 <code-example path="toh-pt4/src/app/heroes/heroes.component.1.ts" header="src/app/heroes/heroes.component.ts" region="getHeroes">
 </code-example>
@@ -361,21 +369,32 @@ This template binds directly to the component's `messageService`.
 * An `*ngFor` presents the list of messages in repeated `<div>` elements.
 
 
-* An Angular [event binding](guide/template-syntax#event-binding) binds the button's click event
+* An Angular [event binding](guide/event-binding) binds the button's click event
 to `MessageService.clear()`.
 
 The messages will look better when you add the private CSS styles to `messages.component.css`
 as listed in one of the ["final code review"](#final-code-review) tabs below.
 
+## Add additional messages to hero service
+
+The following example shows how to send and display a message each time the user clicks on
+a hero, showing a history of the user's selections. This will be helpful when you get to the
+next section on [Routing](tutorial/toh-pt5).
+
+<code-example header="src/app/heroes/heroes.component.ts"
+path="toh-pt4/src/app/heroes/heroes.component.ts">
+</code-example>
+
 The browser refreshes and the page displays the list of heroes.
-Scroll to the bottom to see the message from the `HeroService` in the message area.
-Click the "clear" button and the message area disappears.
+Refresh the browser to see the list of heroes, and scroll to the bottom to see the
+messages from the HeroService. Each time you click a hero, a new message appears to record
+the selection. Use the "clear" button to clear the message history.
 
 {@a final-code-review}
 
 ## Final code review
 
-Here are the code files discussed on this page and your app should look like this <live-example></live-example>.
+Here are the code files discussed on this page.
 
 <code-tabs>
 

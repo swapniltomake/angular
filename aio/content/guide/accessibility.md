@@ -10,14 +10,20 @@ For an in-depth introduction to issues and techniques for designing accessible a
 This page discusses best practices for designing Angular applications that
 work well for all users, including those who rely on assistive technologies.
 
+<div class="alert is-helpful">
+
+  For the sample app that this page describes, see the <live-example></live-example>.
+
+</div>
+
 ## Accessibility attributes
 
 Building accessible web experience often involves setting [ARIA attributes](https://developers.google.com/web/fundamentals/accessibility/semantics-aria)
 to provide semantic meaning where it might otherwise be missing.
-Use [attribute binding](guide/template-syntax#attribute-binding) template syntax to control the values of accessibility-related attributes.
+Use [attribute binding](guide/attribute-binding) template syntax to control the values of accessibility-related attributes.
 
 When binding to ARIA attributes in Angular, you must use the `attr.` prefix, as the ARIA
-specification depends specifically on HTML attributes rather than properties on DOM elements.
+specification depends specifically on HTML attributes rather than properties of DOM elements.
 
 ```html
 <!-- Use attr. when binding to an ARIA attribute -->
@@ -38,7 +44,7 @@ NOTE:
 
    By convention, HTML attributes use lowercase names (`tabindex`), while properties use camelCase names (`tabIndex`).
 
-   See the [Template Syntax](https://angular.io/guide/template-syntax#html-attribute-vs-dom-property) guide for more background on the difference between attributes and properties.
+   See the [Binding syntax](guide/binding-syntax#html-attribute-vs-dom-property) guide for more background on the difference between attributes and properties.
 
 </div>
 
@@ -84,48 +90,13 @@ The following example shows how to make a simple progress bar accessible by usin
 
 * The component defines an accessibility-enabled element with both the standard HTML attribute `role`, and ARIA attributes. The ARIA attribute `aria-valuenow` is bound to the user's input.
 
-   ```ts
-  import { Component, Input } from '@angular/core';
-   /**
-    * Example progressbar component.
-    */
-   @Component({
-     selector: 'example-progressbar',
-     template: `<div class="bar" [style.width.%]="value"></div>`,
-     styleUrls: ['./progress-bar.css'],
-     host: {
-       // Sets the role for this component to "progressbar"
-       role: 'progressbar',
+   <code-example path="accessibility/src/app/progress-bar.component.ts" header="src/app/progress-bar.component.ts" region="progressbar-component"></code-example>
 
-      // Sets the minimum and maximum values for the progressbar role.
-       'aria-valuemin': '0',
-       'aria-valuemax': '100',
-
-       // Binding that updates the current value of the progressbar.
-       '[attr.aria-valuenow]': 'value',
-     }
-   })
-   export class ExampleProgressbar  {
-     /** Current value of the progressbar. */
-     @Input() value: number = 0;
-   }
-   ```
 
 * In the template, the `aria-label` attribute ensures that the control is accessible to screen readers.
 
-   ```html
-   <label>
-      Enter an example progress value
-      <input type="number" min="0" max="100"
-         [value]="progress" (input)="progress = $event.target.value">
-   </label>
+   <code-example path="accessibility/src/app/app.component.html" header="src/app/app.component.html" region="template"></code-example>
 
-   <!-- The user of the progressbar sets an aria-label to communicate what the progress means. -->
-   <example-progressbar [value]="progress" aria-label="Example of a progress bar">
-   </example-progressbar>
-   ```
-
-[See the full example in StackBlitz](https://stackblitz.com/edit/angular-kn5jdi?file=src%2Fapp%2Fapp.component.html).
 
 ## Routing and focus management
 

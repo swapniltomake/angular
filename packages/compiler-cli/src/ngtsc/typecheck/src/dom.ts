@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -9,11 +9,13 @@
 import {DomElementSchemaRegistry, ParseSourceSpan, SchemaMetadata, TmplAstElement} from '@angular/compiler';
 import * as ts from 'typescript';
 
-import {ErrorCode} from '../../diagnostics';
+import {ErrorCode, ngErrorCode} from '../../diagnostics';
+import {TemplateId} from '../api';
 
-import {TcbSourceResolver, makeTemplateDiagnostic} from './diagnostics';
+import {makeTemplateDiagnostic, TemplateDiagnostic, TemplateSourceResolver} from './diagnostics';
 
 const REGISTRY = new DomElementSchemaRegistry();
+const REMOVE_XHTML_REGEX = /^:xhtml:/;
 
 /**
  * Checks every non-Angular element/property processed in a template and potentially produces
@@ -29,7 +31,7 @@ export interface DomSchemaChecker {
    * Get the `ts.Diagnostic`s that have been generated via `checkElement` and `checkProperty` calls
    * thus far.
    */
-  readonly diagnostics: ReadonlyArray<ts.Diagnostic>;
+  readonly diagnostics: ReadonlyArray<TemplateDiagnostic>;
 
   /**
    * Check a non-Angular element and record any diagnostics about it.
@@ -61,31 +63,68 @@ export interface DomSchemaChecker {
  * Checks non-Angular elements and properties against the `DomElementSchemaRegistry`, a schema
  * maintained by the Angular team via extraction from a browser IDL.
  */
-export class RegistryDomSchemaChecker {
-  private _diagnostics: ts.Diagnostic[] = [];
+export class RegistryDomSchemaChecker implements DomSchemaChecker {
+  private _diagnostics: TemplateDiagnostic[] = [];
 
-  get diagnostics(): ReadonlyArray<ts.Diagnostic> { return this._diagnostics; }
+  get diagnostics(): ReadonlyArray<TemplateDiagnostic> {
+    return this._diagnostics;
+  }
 
-  constructor(private resolver: TcbSourceResolver) {}
+  constructor(private resolver: TemplateSourceResolver) {}
 
-  checkElement(id: string, element: TmplAstElement, schemas: SchemaMetadata[]): void {
-    if (!REGISTRY.hasElement(element.name, schemas)) {
+  checkElement(id: TemplateId, element: TmplAstElement, schemas: SchemaMetadata[]): void {
+    // HTML elements inside an SVG `foreignObject` are declared in the `xhtml` namespace.
+    // We need to strip it before handing it over to the registry because all HTML tag names
+    // in the registry are without a namespace.
+    const name = element.name.replace(REMOVE_XHTML_REGEX, '');
+
+    if (!REGISTRY.hasElement(name, schemas)) {
       const mapping = this.resolver.getSourceMapping(id);
+
+      let errorMsg = `'${name}' is not a known element:\n`;
+      errorMsg +=
+          `1. If '${name}' is an Angular component, then verify that it is part of this module.\n`;
+      if (name.indexOf('-') > -1) {
+        errorMsg += `2. If '${
+            name}' is a Web Component then add 'CUSTOM_ELEMENTS_SCHEMA' to the '@NgModule.schemas' of this component to suppress this message.`;
+      } else {
+        errorMsg +=
+            `2. To allow any element add 'NO_ERRORS_SCHEMA' to the '@NgModule.schemas' of this component.`;
+      }
+
       const diag = makeTemplateDiagnostic(
-          mapping, element.sourceSpan, ts.DiagnosticCategory.Error,
-          ErrorCode.SCHEMA_INVALID_ELEMENT, `'${element.name}' is not a valid HTML element.`);
+          id, mapping, element.sourceSpan, ts.DiagnosticCategory.Error,
+          ngErrorCode(ErrorCode.SCHEMA_INVALID_ELEMENT), errorMsg);
       this._diagnostics.push(diag);
     }
   }
 
   checkProperty(
-      id: string, element: TmplAstElement, name: string, span: ParseSourceSpan,
+      id: TemplateId, element: TmplAstElement, name: string, span: ParseSourceSpan,
       schemas: SchemaMetadata[]): void {
     if (!REGISTRY.hasProperty(element.name, name, schemas)) {
       const mapping = this.resolver.getSourceMapping(id);
+
+      let errorMsg =
+          `Can't bind to '${name}' since it isn't a known property of '${element.name}'.`;
+      if (element.name.startsWith('ng-')) {
+        errorMsg +=
+            `\n1. If '${
+                name}' is an Angular directive, then add 'CommonModule' to the '@NgModule.imports' of this component.` +
+            `\n2. To allow any property add 'NO_ERRORS_SCHEMA' to the '@NgModule.schemas' of this component.`;
+      } else if (element.name.indexOf('-') > -1) {
+        errorMsg +=
+            `\n1. If '${element.name}' is an Angular component and it has '${
+                name}' input, then verify that it is part of this module.` +
+            `\n2. If '${
+                element
+                    .name}' is a Web Component then add 'CUSTOM_ELEMENTS_SCHEMA' to the '@NgModule.schemas' of this component to suppress this message.` +
+            `\n3. To allow any property add 'NO_ERRORS_SCHEMA' to the '@NgModule.schemas' of this component.`;
+      }
+
       const diag = makeTemplateDiagnostic(
-          mapping, span, ts.DiagnosticCategory.Error, ErrorCode.SCHEMA_INVALID_ATTRIBUTE,
-          `'${name}' is not a valid property of <${element.name}>.`);
+          id, mapping, span, ts.DiagnosticCategory.Error,
+          ngErrorCode(ErrorCode.SCHEMA_INVALID_ATTRIBUTE), errorMsg);
       this._diagnostics.push(diag);
     }
   }

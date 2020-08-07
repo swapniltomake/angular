@@ -1,11 +1,12 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
 
+import {isDevMode} from '@angular/core';
 import {MonoTypeOperatorFunction} from 'rxjs';
 import {map} from 'rxjs/operators';
 
@@ -14,16 +15,16 @@ import {ActivationEnd, ChildActivationEnd, Event} from '../events';
 import {DetachedRouteHandleInternal, RouteReuseStrategy} from '../route_reuse_strategy';
 import {NavigationTransition} from '../router';
 import {ChildrenOutletContexts} from '../router_outlet_context';
-import {ActivatedRoute, ActivatedRouteSnapshot, RouterState, advanceActivatedRoute} from '../router_state';
+import {ActivatedRoute, ActivatedRouteSnapshot, advanceActivatedRoute, RouterState} from '../router_state';
 import {forEach} from '../utils/collection';
-import {TreeNode, nodeChildrenAsMap} from '../utils/tree';
+import {nodeChildrenAsMap, TreeNode} from '../utils/tree';
 
 export const activateRoutes =
     (rootContexts: ChildrenOutletContexts, routeReuseStrategy: RouteReuseStrategy,
      forwardEvent: (evt: Event) => void): MonoTypeOperatorFunction<NavigationTransition> =>
         map(t => {
           new ActivateRoutes(
-              routeReuseStrategy, t.targetRouterState !, t.currentRouterState, forwardEvent)
+              routeReuseStrategy, t.targetRouterState!, t.currentRouterState, forwardEvent)
               .activate(rootContexts);
           return t;
         });
@@ -185,6 +186,10 @@ export class ActivateRoutes {
             // Activate the outlet when it has already been instantiated
             // Otherwise it will get activated from its `ngOnInit` when instantiated
             context.outlet.activateWith(future, cmpFactoryResolver);
+          } else if (isDevMode() && console && console.warn) {
+            console.warn(
+                `A router outlet has not been instantiated during routes activation. URL Segment: '${
+                    future.snapshot._urlSegment}'`);
           }
 
           this.activateChildRoutes(futureNode, null, context.children);

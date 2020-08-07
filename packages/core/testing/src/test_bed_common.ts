@@ -1,12 +1,12 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {Component, Directive, InjectFlags, InjectionToken, NgModule, Pipe, PlatformRef, SchemaMetadata, Type} from '@angular/core';
+import {AbstractType, Component, Directive, InjectFlags, InjectionToken, NgModule, Pipe, PlatformRef, SchemaMetadata, Type} from '@angular/core';
 
 import {ComponentFixture} from './component_fixture';
 import {MetadataOverride} from './metadata_override';
@@ -49,7 +49,7 @@ export type TestModuleMetadata = {
  * @publicApi
  */
 export interface TestBedStatic {
-  new (...args: any[]): TestBed;
+  new(...args: any[]): TestBed;
 
   initTestEnvironment(
       ngModule: Type<any>|Type<any>[], platform: PlatformRef, aotSummaries?: () => any[]): TestBed;
@@ -114,15 +114,15 @@ export interface TestBedStatic {
     deps?: any[],
   }): TestBedStatic;
 
+  inject<T>(
+      token: Type<T>|InjectionToken<T>|AbstractType<T>, notFoundValue?: T, flags?: InjectFlags): T;
+  inject<T>(
+      token: Type<T>|InjectionToken<T>|AbstractType<T>, notFoundValue: null, flags?: InjectFlags): T
+      |null;
+
+  /** @deprecated from v9.0.0 use TestBed.inject */
   get<T>(token: Type<T>|InjectionToken<T>, notFoundValue?: T, flags?: InjectFlags): any;
-  // TODO: switch back to official deprecation marker once TSLint issue is resolved
-  // https://github.com/palantir/tslint/issues/4522
-  /**
-   * deprecated from v8.0.0 use Type<T> or InjectionToken<T>
-   * This does not use the deprecated jsdoc tag on purpose
-   * because it renders all overloads as deprecated in TSLint
-   * due to https://github.com/palantir/tslint/issues/4522.
-   */
+  /** @deprecated from v9.0.0 use TestBed.inject */
   get(token: any, notFoundValue?: any): any;
 
   createComponent<T>(component: Type<T>): ComponentFixture<T>;

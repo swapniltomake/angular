@@ -1,25 +1,27 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+import {DeclareVarStmt, LiteralExpr, StmtModifier} from '@angular/compiler';
 import MagicString from 'magic-string';
 import * as ts from 'typescript';
+
+import {absoluteFrom, absoluteFromSourceFile, AbsoluteFsPath, getFileSystem, getSourceFileOrError} from '../../../src/ngtsc/file_system';
+import {runInEachFileSystem, TestFile} from '../../../src/ngtsc/file_system/testing';
 import {NoopImportRewriter} from '../../../src/ngtsc/imports';
-import {AbsoluteFsPath, getFileSystem, getSourceFileOrError, absoluteFrom, absoluteFromSourceFile} from '../../../src/ngtsc/file_system';
-import {TestFile, runInEachFileSystem} from '../../../src/ngtsc/file_system/testing';
-import {loadTestFiles} from '../../../test/helpers';
+import {MockLogger} from '../../../src/ngtsc/logging/testing';
 import {getDeclaration} from '../../../src/ngtsc/testing';
 import {ImportManager} from '../../../src/ngtsc/translator';
+import {loadTestFiles} from '../../../test/helpers';
 import {DecorationAnalyzer} from '../../src/analysis/decoration_analyzer';
 import {NgccReferencesRegistry} from '../../src/analysis/ngcc_references_registry';
 import {SwitchMarkerAnalyzer} from '../../src/analysis/switch_marker_analyzer';
 import {CommonJsReflectionHost} from '../../src/host/commonjs_host';
 import {CommonJsRenderingFormatter} from '../../src/rendering/commonjs_rendering_formatter';
 import {makeTestEntryPointBundle} from '../helpers/utils';
-import {MockLogger} from '../helpers/mock_logger';
 
 runInEachFileSystem(() => {
   describe('CommonJsRenderingFormatter', () => {
@@ -150,12 +152,11 @@ exports.D = D;
       const fs = getFileSystem();
       const logger = new MockLogger();
       const bundle = makeTestEntryPointBundle('test-package', 'commonjs', false, [file.name]);
-      const typeChecker = bundle.src.program.getTypeChecker();
-      const host = new CommonJsReflectionHost(logger, false, bundle.src.program, bundle.src.host);
+      const host = new CommonJsReflectionHost(logger, false, bundle.src);
       const referencesRegistry = new NgccReferencesRegistry(host);
       const decorationAnalyses =
           new DecorationAnalyzer(fs, bundle, host, referencesRegistry).analyzeProgram();
-      const switchMarkerAnalyses = new SwitchMarkerAnalyzer(host, bundle.entryPoint.package)
+      const switchMarkerAnalyses = new SwitchMarkerAnalyzer(host, bundle.entryPoint.packagePath)
                                        .analyzeProgram(bundle.src.program);
       const renderer = new CommonJsRenderingFormatter(host, false);
       const importManager = new ImportManager(new NoopImportRewriter(), 'i');
@@ -186,6 +187,17 @@ require('some-side-effect');
 var core = require('@angular/core');
 var i0 = require('@angular/core');
 var i1 = require('@angular/common');`);
+      });
+
+      it('should leave the file unchanged if there are no imports to add', () => {
+        const {renderer, sourceFile} = setup(PROGRAM);
+        const output = new MagicString(PROGRAM.contents);
+        const contentsBefore = output.toString();
+
+        renderer.addImports(output, [], sourceFile);
+        const contentsAfter = output.toString();
+
+        expect(contentsAfter).toBe(contentsBefore);
       });
     });
 
@@ -226,36 +238,6 @@ exports.ComponentA2 = i0.ComponentA2;
 exports.ComponentB = i1.ComponentB;
 exports.TopLevelComponent = TopLevelComponent;`);
       });
-
-      it('should not insert alias exports in js output', () => {
-        const {importManager, renderer, sourceFile} = setup(PROGRAM);
-        const output = new MagicString(PROGRAM.contents);
-        renderer.addExports(
-            output, _(PROGRAM.name.replace(/\.js$/, '')),
-            [
-              {
-                from: _('/node_modules/test-package/some/a.js'),
-                alias: 'eComponentA1',
-                identifier: 'ComponentA1'
-              },
-              {
-                from: _('/node_modules/test-package/some/a.js'),
-                alias: 'eComponentA2',
-                identifier: 'ComponentA2'
-              },
-              {
-                from: _('/node_modules/test-package/some/foo/b.js'),
-                alias: 'eComponentB',
-                identifier: 'ComponentB'
-              },
-              {from: PROGRAM.name, alias: 'eTopLevelComponent', identifier: 'TopLevelComponent'},
-            ],
-            importManager, sourceFile);
-        const outputString = output.toString();
-        expect(outputString).not.toContain(`{eComponentA1 as ComponentA1}`);
-        expect(outputString).not.toContain(`{eComponentB as ComponentB}`);
-        expect(outputString).not.toContain(`{eTopLevelComponent as TopLevelComponent}`);
-      });
     });
 
     describe('addConstants', () => {
@@ -292,7 +274,7 @@ var A = (function() {`);
         const file = getSourceFileOrError(program, _('/node_modules/test-package/some/file.js'));
         const output = new MagicString(PROGRAM.contents);
         renderer.rewriteSwitchableDeclarations(
-            output, file, switchMarkerAnalyses.get(sourceFile) !.declarations);
+            output, file, switchMarkerAnalyses.get(sourceFile)!.declarations);
         expect(output.toString())
             .not.toContain(`var compileNgModuleFactory = compileNgModuleFactory__PRE_R3__;`);
         expect(output.toString())
@@ -314,7 +296,7 @@ var A = (function() {`);
            const {renderer, decorationAnalyses, sourceFile} = setup(PROGRAM);
            const output = new MagicString(PROGRAM.contents);
            const compiledClass =
-               decorationAnalyses.get(sourceFile) !.compiledClasses.find(c => c.name === 'A') !;
+               decorationAnalyses.get(sourceFile)!.compiledClasses.find(c => c.name === 'A')!;
            renderer.addDefinitions(output, compiledClass, 'SOME DEFINITION TEXT');
            expect(output.toString()).toContain(`
   A.prototype.ngDoCheck = function() {
@@ -334,29 +316,81 @@ SOME DEFINITION TEXT
         const mockNoIifeClass: any = {declaration: noIifeDeclaration, name: 'NoIife'};
         expect(() => renderer.addDefinitions(output, mockNoIifeClass, 'SOME DEFINITION TEXT'))
             .toThrowError(
-                `Compiled class declaration is not inside an IIFE: NoIife in ${_('/node_modules/test-package/some/file.js')}`);
+                `Compiled class "NoIife" in "${
+                    _('/node_modules/test-package/some/file.js')}" does not have a valid syntax.\n` +
+                `Expected an ES5 IIFE wrapped function. But got:\n` +
+                `function NoIife() {}`);
 
         const badIifeDeclaration = getDeclaration(
             program, absoluteFromSourceFile(sourceFile), 'BadIife', ts.isVariableDeclaration);
         const mockBadIifeClass: any = {declaration: badIifeDeclaration, name: 'BadIife'};
         expect(() => renderer.addDefinitions(output, mockBadIifeClass, 'SOME DEFINITION TEXT'))
             .toThrowError(
-                `Compiled class wrapper IIFE does not have a return statement: BadIife in ${_('/node_modules/test-package/some/file.js')}`);
+                `Compiled class wrapper IIFE does not have a return statement: BadIife in ${
+                    _('/node_modules/test-package/some/file.js')}`);
       });
     });
 
+    describe('addAdjacentStatements', () => {
+      const contents = `var core = require('@angular/core');\n` +
+          `var SomeDirective = /** @class **/ (function () {\n` +
+          `  function SomeDirective(zone, cons) {}\n` +
+          `  SomeDirective.prototype.method = function() {}\n` +
+          `  SomeDirective.decorators = [\n` +
+          `    { type: core.Directive, args: [{ selector: '[a]' }] },\n` +
+          `    { type: OtherA }\n` +
+          `  ];\n` +
+          `  SomeDirective.ctorParameters = function() { return [\n` +
+          `    { type: core.NgZone },\n` +
+          `    { type: core.Console }\n` +
+          `  ]; };\n` +
+          `  return SomeDirective;\n` +
+          `}());\n` +
+          `export {SomeDirective};`;
+
+      it('should insert the statements after all the static methods of the class', () => {
+        const program = {name: _('/node_modules/test-package/some/file.js'), contents};
+        const {renderer, decorationAnalyses, sourceFile} = setup(program);
+        const output = new MagicString(contents);
+        const compiledClass = decorationAnalyses.get(sourceFile)!.compiledClasses.find(
+            c => c.name === 'SomeDirective')!;
+        renderer.addAdjacentStatements(output, compiledClass, 'SOME STATEMENTS');
+        expect(output.toString())
+            .toContain(
+                `  SomeDirective.ctorParameters = function() { return [\n` +
+                `    { type: core.NgZone },\n` +
+                `    { type: core.Console }\n` +
+                `  ]; };\n` +
+                `SOME STATEMENTS\n` +
+                `  return SomeDirective;\n`);
+      });
+
+      it('should insert the statements after any definitions', () => {
+        const program = {name: _('/node_modules/test-package/some/file.js'), contents};
+        const {renderer, decorationAnalyses, sourceFile} = setup(program);
+        const output = new MagicString(contents);
+        const compiledClass = decorationAnalyses.get(sourceFile)!.compiledClasses.find(
+            c => c.name === 'SomeDirective')!;
+        renderer.addDefinitions(output, compiledClass, 'SOME DEFINITIONS');
+        renderer.addAdjacentStatements(output, compiledClass, 'SOME STATEMENTS');
+        const definitionsPosition = output.toString().indexOf('SOME DEFINITIONS');
+        const statementsPosition = output.toString().indexOf('SOME STATEMENTS');
+        expect(definitionsPosition).not.toEqual(-1, 'definitions should exist');
+        expect(statementsPosition).not.toEqual(-1, 'statements should exist');
+        expect(statementsPosition).toBeGreaterThan(definitionsPosition);
+      });
+    });
 
     describe('removeDecorators', () => {
-
       it('should delete the decorator (and following comma) that was matched in the analysis',
          () => {
            const {renderer, decorationAnalyses, sourceFile} = setup(PROGRAM);
            const output = new MagicString(PROGRAM.contents);
            const compiledClass =
-               decorationAnalyses.get(sourceFile) !.compiledClasses.find(c => c.name === 'A') !;
-           const decorator = compiledClass.decorators ![0];
+               decorationAnalyses.get(sourceFile)!.compiledClasses.find(c => c.name === 'A')!;
+           const decorator = compiledClass.decorators![0];
            const decoratorsToRemove = new Map<ts.Node, ts.Node[]>();
-           decoratorsToRemove.set(decorator.node.parent !, [decorator.node]);
+           decoratorsToRemove.set(decorator.node!.parent!, [decorator.node!]);
            renderer.removeDecorators(output, decoratorsToRemove);
            expect(output.toString())
                .not.toContain(`{ type: core.Directive, args: [{ selector: '[a]' }] },`);
@@ -374,10 +408,10 @@ SOME DEFINITION TEXT
            const {renderer, decorationAnalyses, sourceFile} = setup(PROGRAM);
            const output = new MagicString(PROGRAM.contents);
            const compiledClass =
-               decorationAnalyses.get(sourceFile) !.compiledClasses.find(c => c.name === 'B') !;
-           const decorator = compiledClass.decorators ![0];
+               decorationAnalyses.get(sourceFile)!.compiledClasses.find(c => c.name === 'B')!;
+           const decorator = compiledClass.decorators![0];
            const decoratorsToRemove = new Map<ts.Node, ts.Node[]>();
-           decoratorsToRemove.set(decorator.node.parent !, [decorator.node]);
+           decoratorsToRemove.set(decorator.node!.parent!, [decorator.node!]);
            renderer.removeDecorators(output, decoratorsToRemove);
            expect(output.toString())
                .toContain(`{ type: core.Directive, args: [{ selector: '[a]' }] },`);
@@ -395,10 +429,10 @@ SOME DEFINITION TEXT
            const {renderer, decorationAnalyses, sourceFile} = setup(PROGRAM);
            const output = new MagicString(PROGRAM.contents);
            const compiledClass =
-               decorationAnalyses.get(sourceFile) !.compiledClasses.find(c => c.name === 'C') !;
-           const decorator = compiledClass.decorators ![0];
+               decorationAnalyses.get(sourceFile)!.compiledClasses.find(c => c.name === 'C')!;
+           const decorator = compiledClass.decorators![0];
            const decoratorsToRemove = new Map<ts.Node, ts.Node[]>();
-           decoratorsToRemove.set(decorator.node.parent !, [decorator.node]);
+           decoratorsToRemove.set(decorator.node!.parent!, [decorator.node!]);
            renderer.removeDecorators(output, decoratorsToRemove);
            renderer.addDefinitions(output, compiledClass, 'SOME DEFINITION TEXT');
            expect(output.toString())
@@ -411,7 +445,6 @@ SOME DEFINITION TEXT
                .toContain(`function C() {}\nSOME DEFINITION TEXT\n  return C;`);
            expect(output.toString()).not.toContain(`C.decorators`);
          });
-
     });
 
     describe('[__decorate declarations]', () => {
@@ -420,10 +453,10 @@ SOME DEFINITION TEXT
            const {renderer, decorationAnalyses, sourceFile} = setup(PROGRAM_DECORATE_HELPER);
            const output = new MagicString(PROGRAM_DECORATE_HELPER.contents);
            const compiledClass =
-               decorationAnalyses.get(sourceFile) !.compiledClasses.find(c => c.name === 'A') !;
-           const decorator = compiledClass.decorators !.find(d => d.name === 'Directive') !;
+               decorationAnalyses.get(sourceFile)!.compiledClasses.find(c => c.name === 'A')!;
+           const decorator = compiledClass.decorators!.find(d => d.name === 'Directive')!;
            const decoratorsToRemove = new Map<ts.Node, ts.Node[]>();
-           decoratorsToRemove.set(decorator.node.parent !, [decorator.node]);
+           decoratorsToRemove.set(decorator.node!.parent!, [decorator.node!]);
            renderer.removeDecorators(output, decoratorsToRemove);
            expect(output.toString()).not.toContain(`Directive({ selector: '[a]' }),`);
            expect(output.toString()).toContain(`OtherA()`);
@@ -437,10 +470,10 @@ SOME DEFINITION TEXT
            const {renderer, decorationAnalyses, sourceFile} = setup(PROGRAM_DECORATE_HELPER);
            const output = new MagicString(PROGRAM_DECORATE_HELPER.contents);
            const compiledClass =
-               decorationAnalyses.get(sourceFile) !.compiledClasses.find(c => c.name === 'B') !;
-           const decorator = compiledClass.decorators !.find(d => d.name === 'Directive') !;
+               decorationAnalyses.get(sourceFile)!.compiledClasses.find(c => c.name === 'B')!;
+           const decorator = compiledClass.decorators!.find(d => d.name === 'Directive')!;
            const decoratorsToRemove = new Map<ts.Node, ts.Node[]>();
-           decoratorsToRemove.set(decorator.node.parent !, [decorator.node]);
+           decoratorsToRemove.set(decorator.node!.parent!, [decorator.node!]);
            renderer.removeDecorators(output, decoratorsToRemove);
            expect(output.toString()).toContain(`Directive({ selector: '[a]' }),`);
            expect(output.toString()).toContain(`OtherA()`);
@@ -455,10 +488,10 @@ SOME DEFINITION TEXT
            const {renderer, decorationAnalyses, sourceFile} = setup(PROGRAM_DECORATE_HELPER);
            const output = new MagicString(PROGRAM_DECORATE_HELPER.contents);
            const compiledClass =
-               decorationAnalyses.get(sourceFile) !.compiledClasses.find(c => c.name === 'C') !;
-           const decorator = compiledClass.decorators !.find(d => d.name === 'Directive') !;
+               decorationAnalyses.get(sourceFile)!.compiledClasses.find(c => c.name === 'C')!;
+           const decorator = compiledClass.decorators!.find(d => d.name === 'Directive')!;
            const decoratorsToRemove = new Map<ts.Node, ts.Node[]>();
-           decoratorsToRemove.set(decorator.node.parent !, [decorator.node]);
+           decoratorsToRemove.set(decorator.node!.parent!, [decorator.node!]);
            renderer.removeDecorators(output, decoratorsToRemove);
            expect(output.toString()).toContain(`Directive({ selector: '[a]' }),`);
            expect(output.toString()).toContain(`OtherA()`);
@@ -468,6 +501,20 @@ SOME DEFINITION TEXT
            expect(output.toString()).not.toContain(`C = tslib_1.__decorate([`);
            expect(output.toString()).toContain(`function C() {\n    }\n    return C;`);
          });
+    });
+
+    describe('printStatement', () => {
+      it('should transpile code to ES5', () => {
+        const {renderer, sourceFile, importManager} = setup(PROGRAM);
+
+        const stmt1 = new DeclareVarStmt('foo', new LiteralExpr(42), null, [StmtModifier.Static]);
+        const stmt2 = new DeclareVarStmt('bar', new LiteralExpr(true));
+        const stmt3 = new DeclareVarStmt('baz', new LiteralExpr('qux'), undefined, []);
+
+        expect(renderer.printStatement(stmt1, sourceFile, importManager)).toBe('var foo = 42;');
+        expect(renderer.printStatement(stmt2, sourceFile, importManager)).toBe('var bar = true;');
+        expect(renderer.printStatement(stmt3, sourceFile, importManager)).toBe('var baz = "qux";');
+      });
     });
   });
 });

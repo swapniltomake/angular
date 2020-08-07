@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -21,7 +21,7 @@ export abstract class ViewportScroller {
   // De-sugared tree-shakable injection
   // See #23917
   /** @nocollapse */
-  static ngInjectableDef = ɵɵdefineInjectable({
+  static ɵprov = ɵɵdefineInjectable({
     token: ViewportScroller,
     providedIn: 'root',
     factory: () => new BrowserViewportScroller(ɵɵinject(DOCUMENT), window, ɵɵinject(ErrorHandler))
@@ -165,13 +165,25 @@ export class BrowserViewportScroller implements ViewportScroller {
    */
   private supportScrollRestoration(): boolean {
     try {
-      return !!this.window && !!this.window.scrollTo;
+      if (!this.window || !this.window.scrollTo) {
+        return false;
+      }
+      // The `scrollRestoration` property could be on the `history` instance or its prototype.
+      const scrollRestorationDescriptor = getScrollRestorationProperty(this.window.history) ||
+          getScrollRestorationProperty(Object.getPrototypeOf(this.window.history));
+      // We can write to the `scrollRestoration` property if it is a writable data field or it has a
+      // setter function.
+      return !!scrollRestorationDescriptor &&
+          !!(scrollRestorationDescriptor.writable || scrollRestorationDescriptor.set);
     } catch {
       return false;
     }
   }
 }
 
+function getScrollRestorationProperty(obj: any): PropertyDescriptor|undefined {
+  return Object.getOwnPropertyDescriptor(obj, 'scrollRestoration');
+}
 
 /**
  * Provides an empty implementation of the viewport scroller. This will
@@ -186,7 +198,9 @@ export class NullViewportScroller implements ViewportScroller {
   /**
    * Empty implementation
    */
-  getScrollPosition(): [number, number] { return [0, 0]; }
+  getScrollPosition(): [number, number] {
+    return [0, 0];
+  }
 
   /**
    * Empty implementation

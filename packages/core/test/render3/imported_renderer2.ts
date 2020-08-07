@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
@@ -8,6 +8,7 @@
 
 import {ɵAnimationEngine, ɵNoopAnimationStyleNormalizer} from '@angular/animations/browser';
 import {MockAnimationDriver} from '@angular/animations/browser/testing';
+import {ɵgetDOM as getDOM} from '@angular/common';
 import {NgZone, RendererFactory2, RendererType2} from '@angular/core';
 import {NoopNgZone} from '@angular/core/src/zone/ng_zone';
 import {EventManager, ɵDomRendererFactory2, ɵDomSharedStylesHost} from '@angular/platform-browser';
@@ -16,9 +17,13 @@ import {EventManagerPlugin} from '@angular/platform-browser/src/dom/events/event
 import {isTextNode} from '@angular/platform-browser/testing/src/browser_util';
 
 export class SimpleDomEventsPlugin extends EventManagerPlugin {
-  constructor(doc: any) { super(doc); }
+  constructor(doc: any) {
+    super(doc);
+  }
 
-  supports(eventName: string): boolean { return true; }
+  supports(eventName: string): boolean {
+    return true;
+  }
 
   addEventListener(element: HTMLElement, eventName: string, handler: Function): Function {
     let callback: EventListener = handler as EventListener;
